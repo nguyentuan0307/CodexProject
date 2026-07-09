@@ -1,0 +1,514 @@
+{
+  "name": "rider-like-solution-navigator",
+  "displayName": "Rider-like Solution Navigator",
+  "description": "A Rider-inspired .NET solution explorer for Visual Studio Code.",
+  "version": "0.0.1",
+  "publisher": "local-dev",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:dotnetSolutionNavigator",
+    "onCommand:dotnetSolutionNavigator.refresh"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dotnetSolutionNavigatorContainer",
+          "title": ".NET",
+          "icon": "media/dotnet.svg"
+        }
+      ]
+    },
+    "views": {
+      "dotnetSolutionNavigatorContainer": [
+        {
+          "id": "dotnetSolutionNavigator",
+          "name": "Solution"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "dotnetSolutionNavigator.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.openItem",
+        "title": "Open"
+      },
+      {
+        "command": "dotnetSolutionNavigator.openProjectFile",
+        "title": "Open Project File"
+      },
+      {
+        "command": "dotnetSolutionNavigator.buildProject",
+        "title": "Build"
+      },
+      {
+        "command": "dotnetSolutionNavigator.runProject",
+        "title": "Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.debugProject",
+        "title": "Debug",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.testProject",
+        "title": "Test"
+      },
+      {
+        "command": "dotnetSolutionNavigator.cleanProject",
+        "title": "Clean"
+      },
+      {
+        "command": "dotnetSolutionNavigator.setStartupProject",
+        "title": "Set as Startup Project"
+      },
+      {
+        "command": "dotnetSolutionNavigator.openTerminalHere",
+        "title": "Open Terminal Here"
+      },
+      {
+        "command": "dotnetSolutionNavigator.toggleProjectFiles",
+        "title": "Toggle Project Files",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.toggleFileNesting",
+        "title": "Toggle File Nesting",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.openSettings",
+        "title": "Open Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addClass",
+        "title": "Add: New Class"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addInterface",
+        "title": "Add: New Interface"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addRecord",
+        "title": "Add: New Record"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addEnum",
+        "title": "Add: New Enum"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addFile",
+        "title": "Add: New File"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addFolder",
+        "title": "Add: New Folder"
+      },
+      {
+        "command": "dotnetSolutionNavigator.addExistingItem",
+        "title": "Add: Existing Item..."
+      },
+      {
+        "command": "dotnetSolutionNavigator.renameItem",
+        "title": "Rename"
+      },
+      {
+        "command": "dotnetSolutionNavigator.moveItem",
+        "title": "Move To..."
+      },
+      {
+        "command": "dotnetSolutionNavigator.deleteItem",
+        "title": "Delete"
+      },
+      {
+        "command": "dotnetSolutionNavigator.copyPath",
+        "title": ".NET: Copy Path",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.copyRelativePath",
+        "title": ".NET: Copy Relative Path",
+        "icon": "$(files)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.revealInOs",
+        "title": ".NET: Reveal in File Explorer",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.stopProject",
+        "title": "Stop",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.stopAll",
+        "title": "Stop All",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.selectRunConfig",
+        "title": "Select Run Configuration",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.runActiveConfig",
+        "title": "Run Active Configuration",
+        "icon": "$(play)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.debugActiveConfig",
+        "title": "Debug Active Configuration",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.buildActiveConfig",
+        "title": "Build Active Configuration",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.newCompound",
+        "title": "New Compound Configuration"
+      },
+      {
+        "command": "dotnetSolutionNavigator.deleteCompound",
+        "title": "Delete Compound Configuration"
+      },
+      {
+        "command": "dotnetSolutionNavigator.setActiveConfig",
+        "title": "Set as Active"
+      },
+      {
+        "command": "dotnetSolutionNavigator.runConfigNode",
+        "title": "Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "dotnetSolutionNavigator.debugConfigNode",
+        "title": "Debug",
+        "icon": "$(bug)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "dotnetSolutionNavigator.add",
+        "label": "Add"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "dotnetSolutionNavigator.renameItem",
+        "key": "f2",
+        "when": "focusedView == dotnetSolutionNavigator"
+      },
+      {
+        "command": "dotnetSolutionNavigator.deleteItem",
+        "key": "delete",
+        "when": "focusedView == dotnetSolutionNavigator"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "dotnetSolutionNavigator.runActiveConfig",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.debugActiveConfig",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "navigation@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.stopAll",
+          "when": "view == dotnetSolutionNavigator && dotnetSolutionNavigator.hasRunningProcesses",
+          "group": "navigation@3"
+        },
+        {
+          "command": "dotnetSolutionNavigator.refresh",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "navigation@4"
+        },
+        {
+          "command": "dotnetSolutionNavigator.selectRunConfig",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "1_config@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.buildActiveConfig",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "1_config@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.toggleProjectFiles",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "2_view@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.toggleFileNesting",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "2_view@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.openSettings",
+          "when": "view == dotnetSolutionNavigator",
+          "group": "3_settings@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "submenu": "dotnetSolutionNavigator.add",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /folder|project/",
+          "group": "add@0"
+        },
+        {
+          "command": "dotnetSolutionNavigator.openItem",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.renameItem",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder/",
+          "group": "edit@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.moveItem",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder/",
+          "group": "edit@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.deleteItem",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder/",
+          "group": "edit@3"
+        },
+        {
+          "command": "dotnetSolutionNavigator.copyPath",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
+          "group": "copy@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.copyRelativePath",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
+          "group": "copy@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.revealInOs",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
+          "group": "copy@3"
+        },
+        {
+          "command": "dotnetSolutionNavigator.openProjectFile",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.setStartupProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
+          "group": "project@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.runProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /running/)",
+          "group": "project@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.debugProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /running/)",
+          "group": "project@2b"
+        },
+        {
+          "command": "dotnetSolutionNavigator.buildProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
+          "group": "project@3"
+        },
+        {
+          "command": "dotnetSolutionNavigator.stopProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /running/",
+          "group": "project@3b"
+        },
+        {
+          "command": "dotnetSolutionNavigator.testProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /test/",
+          "group": "project@4"
+        },
+        {
+          "command": "dotnetSolutionNavigator.cleanProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
+          "group": "project@5"
+        },
+        {
+          "command": "dotnetSolutionNavigator.openTerminalHere",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /folder|project/",
+          "group": "terminal@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.runConfigNode",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/",
+          "group": "inline@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.debugConfigNode",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/",
+          "group": "inline@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.setActiveConfig",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/",
+          "group": "cfg@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.deleteCompound",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && viewItem =~ /compound/",
+          "group": "cfg@2"
+        }
+      ],
+      "dotnetSolutionNavigator.add": [
+        {
+          "command": "dotnetSolutionNavigator.addClass",
+          "group": "1_new@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addInterface",
+          "group": "1_new@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addRecord",
+          "group": "1_new@3"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addEnum",
+          "group": "1_new@4"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addFile",
+          "group": "2_file@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addFolder",
+          "group": "2_file@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.addExistingItem",
+          "group": "3_existing@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": ".NET Solution Navigator",
+      "properties": {
+        "dotnetSolutionNavigator.hiddenFolders": {
+          "type": "array",
+          "default": [
+            "bin",
+            "obj",
+            ".vs",
+            ".vscode",
+            ".config",
+            "node_modules",
+            "TestResults",
+            "coverage",
+            "artifacts",
+            "packages"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Folder names hidden from the solution tree."
+        },
+        "dotnetSolutionNavigator.hiddenFiles": {
+          "type": "array",
+          "default": [
+            "*.user",
+            "*.suo",
+            "*.cache"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "File globs hidden from the solution tree."
+        },
+        "dotnetSolutionNavigator.showDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show project and NuGet dependencies under each project."
+        },
+        "dotnetSolutionNavigator.showProjectFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show project files such as .csproj, .fsproj, .vbproj, and .dcproj inside each project node."
+        },
+        "dotnetSolutionNavigator.buildBeforeRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Build the selected project before running or debugging it."
+        },
+        "dotnetSolutionNavigator.buildConfiguration": {
+          "type": "string",
+          "enum": [
+            "Debug",
+            "Release"
+          ],
+          "default": "Debug",
+          "description": "Build configuration used when running or debugging projects."
+        },
+        "dotnetSolutionNavigator.iconMode": {
+          "type": "string",
+          "enum": [
+            "rider",
+            "theme",
+            "minimal"
+          ],
+          "default": "rider",
+          "description": "Icon style used by the .NET solution tree."
+        },
+        "dotnetSolutionNavigator.enableFileNesting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Nest related files under parent files in the .NET solution tree."
+        },
+        "dotnetSolutionNavigator.fileNestingRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "parentPattern": {
+                "type": "string"
+              },
+              "childPattern": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "parentPattern",
+              "childPattern"
+            ]
+          },
+          "description": "Additional file nesting rules. Use ${base} in parentPattern and childPattern."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.5.4"
+  }
+}

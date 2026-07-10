@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { readDirectoryNodes } from './fileTree';
 import { ProjectModel, SolutionModel, TreeNode } from './models';
@@ -222,11 +223,29 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private groupProjectNodes(solution: SolutionModel): TreeNode[] {
+    const solutionTree: TreeNode[] = [];
+    const fallbackProjects: ProjectModel[] = [];
+
+    for (const project of solution.projects) {
+      if (project.solutionFolder && project.solutionFolder.length > 0) {
+        this.insertSolutionFolderProject(solutionTree, solution, project, project.solutionFolder);
+      } else {
+        fallbackProjects.push(project);
+      }
+    }
+
+    return [
+      ...sortTreeNodes(solutionTree),
+      ...this.groupProjectsByDiskPath(solution, fallbackProjects)
+    ];
+  }
+
+  private groupProjectsByDiskPath(solution: SolutionModel, projects: ProjectModel[]): TreeNode[] {
     const rootProjects: TreeNode[] = [];
     const groups = new Map<string, TreeNode[]>();
     const containerFolders = new Set(['src', 'source', 'sources', 'test', 'tests']);
 
-    for (const project of solution.projects) {
+    for (const project of projects) {
       const parts = project.relativePath.split('/').filter(Boolean);
       if (parts.length <= 1) {
         rootProjects.push(this.projectNode(project));
@@ -257,6 +276,51 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return [...groupNodes, ...rootProjects.sort((a, b) => a.label.localeCompare(b.label))];
   }
 
+  private insertSolutionFolderProject(
+    nodes: TreeNode[],
+    solution: SolutionModel,
+    project: ProjectModel,
+    folderPath: string[]
+  ): void {
+    let currentNodes = nodes;
+    const logicalParts: string[] = [];
+
+    for (const [index, folderName] of folderPath.entries()) {
+      logicalParts.push(folderName);
+      const folderId = `folder:${logicalParts.join('/')}`;
+      let folderNode = currentNodes.find(node => node.kind === 'folder' && node.id === folderId);
+
+      if (!folderNode) {
+        folderNode = this.solutionFolderNode(solution, folderName, logicalParts, index);
+        currentNodes.push(folderNode);
+      }
+
+      currentNodes = folderNode.children!;
+    }
+
+    currentNodes.push(this.projectNode(project));
+  }
+
+  private solutionFolderNode(
+    solution: SolutionModel,
+    label: string,
+    logicalParts: string[],
+    depth: number
+  ): TreeNode {
+    const resourcePath = existingDirectoryPath(path.join(solution.rootPath, ...logicalParts));
+
+    return {
+      kind: 'folder',
+      label,
+      id: `folder:${logicalParts.join('/')}`,
+      resourcePath,
+      children: [],
+      collapsibleState: depth === 0
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : vscode.TreeItemCollapsibleState.Collapsed
+    };
+  }
+
   private contextValueFor(node: TreeNode): string {
     if (node.kind === 'project' && node.project) {
       const values = ['project'];
@@ -277,6 +341,10 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       }
 
       return values.join(' ');
+    }
+
+    if (node.kind === 'folder' && !node.resourcePath) {
+      return 'solutionFolder';
     }
 
     if (node.kind === 'runConfig') {
@@ -393,6 +461,10 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private nodeId(node: TreeNode): string | undefined {
+    if (node.id) {
+      return node.id;
+    }
+
     if (node.kind === 'runConfigs') {
       return 'runConfigs';
     }
@@ -410,6 +482,36 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     return `${node.kind}:${node.label}`;
+  }
+}
+
+function sortTreeNodes(nodes: TreeNode[]): TreeNode[] {
+  for (const node of nodes) {
+    if (node.children) {
+      sortTreeNodes(node.children);
+    }
+  }
+
+  return nodes.sort(compareTreeNodes);
+}
+
+function compareTreeNodes(a: TreeNode, b: TreeNode): number {
+  if (a.kind === 'folder' && b.kind !== 'folder') {
+    return -1;
+  }
+
+  if (a.kind !== 'folder' && b.kind === 'folder') {
+    return 1;
+  }
+
+  return a.label.localeCompare(b.label);
+}
+
+function existingDirectoryPath(directoryPath: string): string | undefined {
+  try {
+    return fs.statSync(directoryPath).isDirectory() ? directoryPath : undefined;
+  } catch {
+    return undefined;
   }
 }
 

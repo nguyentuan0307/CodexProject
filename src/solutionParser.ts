@@ -6,11 +6,23 @@ import { parseProject } from './projectParser';
 import { resolveMsbuildPath, uniqueByPath } from './pathUtils';
 
 const supportedProjectExtensions = 'csproj|fsproj|vbproj|dcproj';
+const solutionFolderTypeGuid = '2150E333-8FDC-42A3-9474-1A3956D46DE8';
 const solutionProjectRegex = new RegExp(
-  `Project\\("[^"]+"\\)\\s*=\\s*"[^"]+"\\s*,\\s*"([^"]+\\.(?:${supportedProjectExtensions}))"\\s*,\\s*"\\{[^"]+\\}"`,
+  `Project\\("[^"]+"\\)\\s*=\\s*"[^"]+"\\s*,\\s*"([^"]+\\.(?:${supportedProjectExtensions}))"\\s*,\\s*"\\{([^"]+)\\}"`,
   'gi'
 );
+const solutionFolderRegex = new RegExp(
+  `Project\\("\\{${solutionFolderTypeGuid}\\}"\\)\\s*=\\s*"([^"]+)"\\s*,\\s*"[^"]*"\\s*,\\s*"\\{([^"]+)\\}"`,
+  'gi'
+);
+const nestedProjectsSectionRegex = /GlobalSection\(NestedProjects\)\s*=\s*preSolution([\s\S]*?)EndGlobalSection/gi;
+const nestedProjectRegex = /\{([^}]+)\}\s*=\s*\{([^}]+)\}/gi;
 const slnxProjectRegex = new RegExp(`Path\\s*=\\s*"([^"]+\\.(?:${supportedProjectExtensions}))"`, 'gi');
+
+interface SolutionProjectEntry {
+  readonly path: string;
+  readonly solutionFolder?: string[];
+}
 
 export async function loadSolution(workspaceFolder: vscode.WorkspaceFolder): Promise<SolutionModel> {
   const rootPath = workspaceFolder.uri.fsPath;
@@ -31,7 +43,7 @@ export async function loadSolution(workspaceFolder: vscode.WorkspaceFolder): Pro
     100
   );
 
-  const projects = await parseProjects(projectFiles.map(uri => uri.fsPath), rootPath);
+  const projects = await parseProjects(projectFiles.map(uri => ({ path: uri.fsPath })), rootPath);
   return {
     name: workspaceFolder.name,
     rootPath,
@@ -39,15 +51,18 @@ export async function loadSolution(workspaceFolder: vscode.WorkspaceFolder): Pro
   };
 }
 
-async function parseProjects(projectPaths: string[], rootPath: string): Promise<SolutionModel['projects']> {
-  const results = await Promise.allSettled(projectPaths.map(projectPath => parseProject(projectPath, rootPath)));
+async function parseProjects(projectEntries: SolutionProjectEntry[], rootPath: string): Promise<SolutionModel['projects']> {
+  const results = await Promise.allSettled(projectEntries.map(entry => parseProject(entry.path, rootPath)));
   const projects = [];
 
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') {
-      projects.push(result.value);
+      const solutionFolder = projectEntries[index].solutionFolder;
+      projects.push(solutionFolder && solutionFolder.length > 0
+        ? { ...result.value, solutionFolder }
+        : result.value);
     } else {
-      console.warn(`Skipped project ${projectPaths[index]}: ${result.reason}`);
+      console.warn(`Skipped project ${projectEntries[index].path}: ${result.reason}`);
     }
   }
 
@@ -70,26 +85,107 @@ async function selectSolutionIfNeeded(solutions: vscode.Uri[]): Promise<vscode.U
 
 async function parseSolutionFile(solutionPath: string, rootPath: string): Promise<SolutionModel> {
   const content = await fs.readFile(solutionPath, 'utf8');
-  const projectPaths = solutionPath.toLowerCase().endsWith('.slnx')
-    ? readProjectPaths(slnxProjectRegex, content, path.dirname(solutionPath))
-    : readProjectPaths(solutionProjectRegex, content, path.dirname(solutionPath));
+  const projectEntries = solutionPath.toLowerCase().endsWith('.slnx')
+    ? readSlnxProjectEntries(content, path.dirname(solutionPath))
+    : readSolutionProjectEntries(content, path.dirname(solutionPath));
 
   return {
     name: path.basename(solutionPath),
     path: solutionPath,
     rootPath,
-    projects: await parseProjects(projectPaths, rootPath)
+    projects: await parseProjects(projectEntries, rootPath)
   };
 }
 
-function readProjectPaths(regex: RegExp, content: string, solutionDirectory: string): string[] {
-  const projectPaths: string[] = [];
+function readSlnxProjectEntries(content: string, solutionDirectory: string): SolutionProjectEntry[] {
+  const projectEntries: SolutionProjectEntry[] = [];
   let match: RegExpExecArray | null;
 
-  regex.lastIndex = 0;
-  while ((match = regex.exec(content)) !== null) {
-    projectPaths.push(resolveMsbuildPath(solutionDirectory, match[1]));
+  slnxProjectRegex.lastIndex = 0;
+  while ((match = slnxProjectRegex.exec(content)) !== null) {
+    projectEntries.push({ path: resolveMsbuildPath(solutionDirectory, match[1]) });
   }
 
-  return projectPaths;
+  return projectEntries;
+}
+
+function readSolutionProjectEntries(content: string, solutionDirectory: string): SolutionProjectEntry[] {
+  const folders = readSolutionFolders(content);
+  const nesting = readNestedProjects(content);
+  const projectEntries: SolutionProjectEntry[] = [];
+  let match: RegExpExecArray | null;
+
+  solutionProjectRegex.lastIndex = 0;
+  while ((match = solutionProjectRegex.exec(content)) !== null) {
+    const projectPath = resolveMsbuildPath(solutionDirectory, match[1]);
+    const guid = normalizeGuid(match[2]);
+    const solutionFolder = resolveSolutionFolder(guid, folders, nesting);
+    projectEntries.push({
+      path: projectPath,
+      solutionFolder: solutionFolder.length > 0 ? solutionFolder : undefined
+    });
+  }
+
+  return projectEntries;
+}
+
+function readSolutionFolders(content: string): Map<string, string> {
+  const folders = new Map<string, string>();
+  let match: RegExpExecArray | null;
+
+  solutionFolderRegex.lastIndex = 0;
+  while ((match = solutionFolderRegex.exec(content)) !== null) {
+    const name = match[1];
+    if (name.toLowerCase() === 'solution items') {
+      continue;
+    }
+
+    folders.set(normalizeGuid(match[2]), name);
+  }
+
+  return folders;
+}
+
+function readNestedProjects(content: string): Map<string, string> {
+  const nesting = new Map<string, string>();
+  let sectionMatch: RegExpExecArray | null;
+
+  nestedProjectsSectionRegex.lastIndex = 0;
+  while ((sectionMatch = nestedProjectsSectionRegex.exec(content)) !== null) {
+    const sectionContent = sectionMatch[1];
+    let nestingMatch: RegExpExecArray | null;
+
+    nestedProjectRegex.lastIndex = 0;
+    while ((nestingMatch = nestedProjectRegex.exec(sectionContent)) !== null) {
+      nesting.set(normalizeGuid(nestingMatch[1]), normalizeGuid(nestingMatch[2]));
+    }
+  }
+
+  return nesting;
+}
+
+function resolveSolutionFolder(
+  guid: string,
+  folders: Map<string, string>,
+  nesting: Map<string, string>
+): string[] {
+  const folderPath: string[] = [];
+  const visited = new Set<string>([guid]);
+  let parentGuid = nesting.get(guid);
+
+  while (parentGuid && !visited.has(parentGuid)) {
+    visited.add(parentGuid);
+    const folderName = folders.get(parentGuid);
+    if (folderName) {
+      folderPath.unshift(folderName);
+    }
+
+    parentGuid = nesting.get(parentGuid);
+  }
+
+  return folderPath;
+}
+
+function normalizeGuid(guid: string): string {
+  return guid.replace(/[{}]/g, '').toUpperCase();
 }

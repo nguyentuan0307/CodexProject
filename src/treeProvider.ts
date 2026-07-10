@@ -1,17 +1,22 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { readDirectoryNodes } from './fileTree';
+import { isInside, readDirectoryNodes } from './fileTree';
 import { ProjectModel, SolutionModel, TreeNode } from './models';
+import { samePath } from './pathUtils';
 import { isRunnableProject, isTestProject } from './projectCapabilities';
 import * as runConfigStore from './runConfigStore';
-import { loadSolution } from './solutionParser';
+import { loadSolution, pickSolution } from './solutionParser';
+
+const activeSolutionPathKey = 'activeSolutionPath';
 
 export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<TreeNode | undefined | null | void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
   private solution?: SolutionModel;
+  private solutionTree?: TreeNode[];
+  private loading?: Promise<void>;
   private startupProjectPath?: string;
   private runningStateProvider?: (project: ProjectModel) => boolean;
 
@@ -20,6 +25,17 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   async refresh(): Promise<void> {
+    if (!this.loading) {
+      this.loading = this.loadWorkspaceSolution().finally(() => {
+        this.loading = undefined;
+      });
+    }
+
+    await this.loading;
+  }
+
+  private async loadWorkspaceSolution(): Promise<void> {
+    this.solutionTree = undefined;
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
       this.solution = undefined;
@@ -27,7 +43,11 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return;
     }
 
-    this.solution = await loadSolution(workspaceFolder);
+    this.solution = await loadSolution(workspaceFolder, this.context.workspaceState.get<string>(activeSolutionPathKey));
+    if (this.solution.path) {
+      await this.context.workspaceState.update(activeSolutionPathKey, this.solution.path);
+    }
+
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -91,7 +111,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     if (node.kind === 'solution') {
-      return this.groupProjectNodes(this.solution);
+      return this.getSolutionTree();
     }
 
     if (node.children) {
@@ -137,6 +157,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         kind: 'projectReference',
         label: reference.name,
         resourcePath: reference.path,
+        project: node.project,
         collapsibleState: vscode.TreeItemCollapsibleState.None
       }));
     }
@@ -145,6 +166,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return node.project.packageReferences.map(reference => ({
         kind: 'packageReference',
         label: reference.version ? `${reference.name} ${reference.version}` : reference.name,
+        project: node.project,
         collapsibleState: vscode.TreeItemCollapsibleState.None
       }));
     }
@@ -164,6 +186,70 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     this.startupProjectPath = project.path;
     await this.context.workspaceState.update('startupProjectPath', project.path);
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  async selectActiveSolution(): Promise<void> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      vscode.window.showInformationMessage('Open a workspace folder to select a .NET solution.');
+      return;
+    }
+
+    const picked = await pickSolution(workspaceFolder, this.solution?.path);
+    if (!picked) {
+      return;
+    }
+
+    await this.context.workspaceState.update(activeSolutionPathKey, picked.fsPath);
+    await this.refresh();
+  }
+
+  async findNodeForFile(filePath: string): Promise<TreeNode | undefined> {
+    if (!this.solution) {
+      await this.refresh();
+    }
+
+    if (!this.solution) {
+      return undefined;
+    }
+
+    const project = this.findProjectContaining(filePath);
+    if (!project) {
+      return undefined;
+    }
+
+    return this.findProjectFileNode(project, filePath);
+  }
+
+  async getParent(node: TreeNode): Promise<TreeNode | undefined> {
+    if (!this.solution) {
+      await this.refresh();
+    }
+
+    if (!this.solution) {
+      return undefined;
+    }
+
+    switch (node.kind) {
+      case 'solution':
+      case 'runConfigs':
+      case 'message':
+        return undefined;
+      case 'runConfig':
+        return this.runConfigsNode();
+      case 'project':
+        return node.project ? this.parentForProject(node.project) : undefined;
+      case 'folder':
+        if (node.id?.startsWith('folder:')) {
+          return this.parentForSolutionFolder(node.id);
+        }
+
+        return this.parentForFileSystemNode(node);
+      case 'file':
+        return this.parentForFileSystemNode(node);
+      default:
+        return this.parentForAuxiliaryNode(node);
+    }
   }
 
   private solutionNode(solution: SolutionModel): TreeNode {
@@ -214,12 +300,29 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return [];
     }
 
-    return runConfigStore.listConfigs(this.solution, this.context).map(config => ({
+    const configs = runConfigStore.listConfigs(this.solution, this.context);
+    if (configs.length === 0) {
+      return [{
+        kind: 'message',
+        label: 'No run configurations - click + to add',
+        collapsibleState: vscode.TreeItemCollapsibleState.None
+      }];
+    }
+
+    return configs.map(config => ({
       kind: 'runConfig',
       label: config.label,
       configId: config.id,
       collapsibleState: vscode.TreeItemCollapsibleState.None
     }));
+  }
+
+  private getSolutionTree(): TreeNode[] {
+    if (!this.solutionTree && this.solution) {
+      this.solutionTree = this.groupProjectNodes(this.solution);
+    }
+
+    return this.solutionTree ?? [];
   }
 
   private groupProjectNodes(solution: SolutionModel): TreeNode[] {
@@ -321,6 +424,168 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     };
   }
 
+  private parentForProject(project: ProjectModel): TreeNode | undefined {
+    if (project.solutionFolder && project.solutionFolder.length > 0) {
+      return findNodeById(this.getSolutionTree(), `folder:${project.solutionFolder.join('/')}`);
+    }
+
+    const parentFolder = findNode(this.getSolutionTree(), node =>
+      node.kind === 'folder'
+      && Boolean(node.children?.some(child => child.kind === 'project' && samePath(child.project?.path, project.path)))
+    );
+
+    return parentFolder ?? (this.solution ? this.solutionNode(this.solution) : undefined);
+  }
+
+  private parentForSolutionFolder(folderId: string): TreeNode | undefined {
+    if (!this.solution) {
+      return undefined;
+    }
+
+    const logicalPath = folderId.slice('folder:'.length).split('/').filter(Boolean);
+    logicalPath.pop();
+
+    if (logicalPath.length === 0) {
+      return this.solutionNode(this.solution);
+    }
+
+    return findNodeById(this.getSolutionTree(), `folder:${logicalPath.join('/')}`);
+  }
+
+  private async parentForFileSystemNode(node: TreeNode): Promise<TreeNode | undefined> {
+    if (!node.resourcePath) {
+      return undefined;
+    }
+
+    if (node.project) {
+      const nestedParent = await this.findNestedFileParent(node);
+      if (nestedParent) {
+        return nestedParent;
+      }
+
+      const parentDirectory = path.dirname(node.resourcePath);
+      if (samePath(parentDirectory, node.project.directory)) {
+        return this.projectNode(node.project);
+      }
+
+      return this.fileSystemFolderNode(parentDirectory, node.project);
+    }
+
+    const parentDirectory = path.dirname(node.resourcePath);
+    const parentInSolutionTree = findNode(this.getSolutionTree(), candidate =>
+      candidate.kind === 'folder' && samePath(candidate.resourcePath, parentDirectory)
+    );
+
+    return parentInSolutionTree ?? (this.solution ? this.solutionNode(this.solution) : undefined);
+  }
+
+  private async findNestedFileParent(node: TreeNode): Promise<TreeNode | undefined> {
+    if (!node.resourcePath || !node.project || node.kind !== 'file') {
+      return undefined;
+    }
+
+    const siblingNodes = await readDirectoryNodes(path.dirname(node.resourcePath), node.project.directory, node.project);
+    return siblingNodes.find(candidate =>
+      candidate.kind === 'file'
+      && candidate.children?.some(child => samePath(child.resourcePath, node.resourcePath))
+    );
+  }
+
+  private parentForAuxiliaryNode(node: TreeNode): TreeNode | undefined {
+    if (!node.project) {
+      return undefined;
+    }
+
+    if (node.kind === 'dependencies') {
+      return this.projectNode(node.project);
+    }
+
+    if (node.kind === 'projectReferences' || node.kind === 'packageReferences') {
+      return this.dependenciesNode(node.project);
+    }
+
+    if (node.kind === 'projectReference') {
+      return {
+        kind: 'projectReferences',
+        label: 'Projects',
+        project: node.project,
+        collapsibleState: vscode.TreeItemCollapsibleState.Collapsed
+      };
+    }
+
+    if (node.kind === 'packageReference') {
+      return {
+        kind: 'packageReferences',
+        label: 'Packages',
+        project: node.project,
+        collapsibleState: vscode.TreeItemCollapsibleState.Collapsed
+      };
+    }
+
+    return undefined;
+  }
+
+  private findProjectContaining(filePath: string): ProjectModel | undefined {
+    if (!this.solution) {
+      return undefined;
+    }
+
+    return this.solution.projects
+      .filter(project => isInside(project.directory, filePath))
+      .sort((a, b) => b.directory.length - a.directory.length)[0];
+  }
+
+  private async findProjectFileNode(project: ProjectModel, filePath: string): Promise<TreeNode | undefined> {
+    if (!samePath(filePath, project.directory) && !isInside(project.directory, filePath)) {
+      return undefined;
+    }
+
+    const relativePath = path.relative(project.directory, filePath);
+    if (!relativePath) {
+      return this.projectNode(project);
+    }
+
+    const parts = relativePath.split(path.sep).filter(Boolean);
+    let currentDirectory = project.directory;
+
+    for (const [index, part] of parts.entries()) {
+      const targetPath = path.join(currentDirectory, part);
+      const nodes = await readDirectoryNodes(currentDirectory, project.directory, project);
+      const directNode = nodes.find(node => samePath(node.resourcePath, targetPath));
+      if (directNode) {
+        if (index === parts.length - 1) {
+          return directNode;
+        }
+
+        if (directNode.kind !== 'folder') {
+          return undefined;
+        }
+
+        currentDirectory = targetPath;
+        continue;
+      }
+
+      const nestedNode = findNode(nodes, node => samePath(node.resourcePath, targetPath));
+      if (nestedNode) {
+        return index === parts.length - 1 ? nestedNode : undefined;
+      }
+
+      return undefined;
+    }
+
+    return undefined;
+  }
+
+  private fileSystemFolderNode(directoryPath: string, project: ProjectModel): TreeNode {
+    return {
+      kind: 'folder',
+      label: path.basename(directoryPath),
+      resourcePath: directoryPath,
+      project,
+      collapsibleState: vscode.TreeItemCollapsibleState.Collapsed
+    };
+  }
+
   private contextValueFor(node: TreeNode): string {
     if (node.kind === 'project' && node.project) {
       const values = ['project'];
@@ -343,7 +608,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return values.join(' ');
     }
 
-    if (node.kind === 'folder' && !node.resourcePath) {
+    if (node.kind === 'folder' && node.id?.startsWith('folder:')) {
       return 'solutionFolder';
     }
 
@@ -473,6 +738,10 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return `runConfig:${node.configId ?? node.label}`;
     }
 
+    if ((node.kind === 'projectReference' || node.kind === 'packageReference') && node.project) {
+      return `${node.kind}:${node.project.path}:${node.resourcePath ?? node.label}`;
+    }
+
     if (node.resourcePath) {
       return `${node.kind}:${node.resourcePath}`;
     }
@@ -493,6 +762,27 @@ function sortTreeNodes(nodes: TreeNode[]): TreeNode[] {
   }
 
   return nodes.sort(compareTreeNodes);
+}
+
+function findNode(nodes: TreeNode[], predicate: (node: TreeNode) => boolean): TreeNode | undefined {
+  for (const node of nodes) {
+    if (predicate(node)) {
+      return node;
+    }
+
+    if (node.children) {
+      const child = findNode(node.children, predicate);
+      if (child) {
+        return child;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function findNodeById(nodes: TreeNode[], id: string): TreeNode | undefined {
+  return findNode(nodes, node => node.id === id);
 }
 
 function compareTreeNodes(a: TreeNode, b: TreeNode): number {

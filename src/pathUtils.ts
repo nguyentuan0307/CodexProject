@@ -22,7 +22,7 @@ export function uniqueByPath<T extends { path: string }>(items: T[]): T[] {
   const result: T[] = [];
 
   for (const item of items) {
-    const key = path.resolve(item.path).toLowerCase();
+    const key = normalizePath(item.path);
     if (!seen.has(key)) {
       seen.add(key);
       result.push(item);
@@ -35,4 +35,17 @@ export function uniqueByPath<T extends { path: string }>(items: T[]): T[] {
 export function relativeOrName(rootPath: string, itemPath: string): string {
   const relative = path.relative(rootPath, itemPath);
   return relative.length > 0 ? relative : path.basename(itemPath);
+}
+
+export function normalizePath(value: string): string {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+export function samePath(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  return normalizePath(a) === normalizePath(b);
 }

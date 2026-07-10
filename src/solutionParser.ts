@@ -24,16 +24,29 @@ interface SolutionProjectEntry {
   readonly solutionFolder?: string[];
 }
 
-export async function loadSolution(workspaceFolder: vscode.WorkspaceFolder): Promise<SolutionModel> {
-  const rootPath = workspaceFolder.uri.fsPath;
-  const solutions = await vscode.workspace.findFiles(
+export interface SolutionSelection {
+  readonly path: string;
+  readonly label: string;
+  readonly description: string;
+}
+
+export async function findSolutions(workspaceFolder: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
+  return vscode.workspace.findFiles(
     new vscode.RelativePattern(workspaceFolder, '**/*.{sln,slnx}'),
     '**/{bin,obj,node_modules,.vs}/**',
     20
   );
+}
+
+export async function loadSolution(
+  workspaceFolder: vscode.WorkspaceFolder,
+  preferredSolutionPath?: string
+): Promise<SolutionModel> {
+  const rootPath = workspaceFolder.uri.fsPath;
+  const solutions = await findSolutions(workspaceFolder);
 
   if (solutions.length > 0) {
-    const selected = await selectSolutionIfNeeded(solutions);
+    const selected = resolveSolution(solutions, rootPath, preferredSolutionPath);
     return parseSolutionFile(selected.fsPath, rootPath);
   }
 
@@ -49,6 +62,29 @@ export async function loadSolution(workspaceFolder: vscode.WorkspaceFolder): Pro
     rootPath,
     projects
   };
+}
+
+export async function pickSolution(workspaceFolder: vscode.WorkspaceFolder, currentSolutionPath?: string): Promise<vscode.Uri | undefined> {
+  const solutions = await findSolutions(workspaceFolder);
+  if (solutions.length === 0) {
+    vscode.window.showInformationMessage('No .NET solution file found in this workspace.');
+    return undefined;
+  }
+
+  const sorted = sortSolutions(solutions);
+  const picked = await vscode.window.showQuickPick(
+    sorted.map(uri => ({
+      label: `${samePath(uri.fsPath, currentSolutionPath) ? '$(check) ' : ''}${path.basename(uri.fsPath)}`,
+      description: uri.fsPath,
+      uri
+    })),
+    {
+      title: 'Select Active .NET Solution',
+      placeHolder: 'Select active .NET solution'
+    }
+  );
+
+  return picked?.uri;
 }
 
 async function parseProjects(projectEntries: SolutionProjectEntry[], rootPath: string): Promise<SolutionModel['projects']> {
@@ -69,18 +105,33 @@ async function parseProjects(projectEntries: SolutionProjectEntry[], rootPath: s
   return uniqueByPath(projects).sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 }
 
-async function selectSolutionIfNeeded(solutions: vscode.Uri[]): Promise<vscode.Uri> {
-  const sorted = [...solutions].sort((a, b) => a.fsPath.localeCompare(b.fsPath));
-  if (sorted.length === 1) {
-    return sorted[0];
+function resolveSolution(solutions: vscode.Uri[], rootPath: string, preferredSolutionPath?: string): vscode.Uri {
+  const sorted = sortSolutions(solutions);
+  const preferred = preferredSolutionPath
+    ? sorted.find(uri => samePath(uri.fsPath, preferredSolutionPath))
+    : undefined;
+  if (preferred) {
+    return preferred;
   }
 
-  const picked = await vscode.window.showQuickPick(
-    sorted.map(uri => ({ label: path.basename(uri.fsPath), description: uri.fsPath, uri })),
-    { placeHolder: 'Select active .NET solution' }
-  );
+  const rootSolution = sorted.find(uri => samePath(path.dirname(uri.fsPath), rootPath));
+  return rootSolution ?? sorted[0];
+}
 
-  return picked?.uri ?? sorted[0];
+function sortSolutions(solutions: vscode.Uri[]): vscode.Uri[] {
+  return [...solutions].sort((a, b) => a.fsPath.localeCompare(b.fsPath));
+}
+
+function samePath(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  const normalize = (value: string) => process.platform === 'win32'
+    ? path.resolve(value).toLowerCase()
+    : path.resolve(value);
+
+  return normalize(a) === normalize(b);
 }
 
 async function parseSolutionFile(solutionPath: string, rootPath: string): Promise<SolutionModel> {

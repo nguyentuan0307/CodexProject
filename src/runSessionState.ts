@@ -81,6 +81,13 @@ export function transitionTarget(target: RunTargetState, next: RunPhase): void {
   target.phase = next;
 }
 
+export function completionPhaseForTarget(target: RunTargetState, exitCode?: number): RunPhase {
+  if (target.phase === 'stopping') {
+    return target.error ? 'failed' : 'stopped';
+  }
+  return exitCode === undefined || exitCode === 0 ? 'succeeded' : 'failed';
+}
+
 export function deriveSessionPhase(targets: readonly RunTargetState[]): RunPhase {
   if (targets.length === 0) {
     return 'failed';

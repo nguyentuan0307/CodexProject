@@ -221,13 +221,14 @@ export async function buildProject(
     return ok;
   } catch (error) {
     if (binding) {
-      processManager.failTarget(binding.runId, binding.targetId, {
+      processManager.terminateTimedOutTask(binding.runId, binding.targetId, execution, {
         code: 'build-timeout',
         message: `Build timed out for ${project.name}.`,
         cause: error instanceof Error ? error.message : String(error)
       });
+    } else {
+      execution.terminate();
     }
-    execution.terminate();
     vscode.window.showErrorMessage(`Build timed out for ${project.name}.`);
     return false;
   }

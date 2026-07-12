@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   RunTargetState,
+  completionPhaseForTarget,
   deriveSessionPhase,
   isActivePhase,
   transitionTarget
@@ -50,4 +51,13 @@ test('derives compound progress from the most actionable phase', () => {
 
 test('treats an empty compound as failed', () => {
   assert.equal(deriveSessionPhase([]), 'failed');
+});
+
+test('distinguishes a confirmed user stop from a timeout failure', () => {
+  const userStopped = target('stopping');
+  assert.equal(completionPhaseForTarget(userStopped, 1), 'stopped');
+
+  const timedOut = target('stopping');
+  timedOut.error = { code: 'build-timeout', message: 'Build timed out.' };
+  assert.equal(completionPhaseForTarget(timedOut, 1), 'failed');
 });

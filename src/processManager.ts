@@ -8,6 +8,7 @@ import {
   RunPhase,
   RunSessionState,
   RunTargetState,
+  completionPhaseForTarget,
   isActivePhase,
   syncSessionPhase,
   transitionTarget
@@ -46,6 +47,7 @@ export interface RunSessionChange {
 }
 
 const defaultStopTimeoutMs = 10_000;
+const retainedCompletedSessions = 50;
 
 export class ProcessManager implements vscode.Disposable {
   private readonly onDidChangeRunningStateEmitter = new vscode.EventEmitter<boolean>();
@@ -109,7 +111,7 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   getActiveSessionForConfig(configId: string): RunSessionState | undefined {
-    return [...this.sessionsById.values()].find(session => session.configId === configId && sessionHasActiveTargets(session));
+    return [...this.sessionsById.values()].find(session => session.configId === configId && this.sessionIsBusy(session));
   }
 
   getLatestSessionForConfig(configId: string): RunSessionState | undefined {
@@ -119,7 +121,7 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   getActiveSessions(): RunSessionState[] {
-    return [...this.sessionsById.values()].filter(sessionHasActiveTargets);
+    return [...this.sessionsById.values()].filter(session => this.sessionIsBusy(session));
   }
 
   getConfigPhase(configId: string): RunPhase | undefined {
@@ -150,6 +152,23 @@ export class ProcessManager implements vscode.Disposable {
     this.emitSession(session);
   }
 
+  terminateTimedOutTask(
+    runId: string,
+    targetId: string,
+    execution: vscode.TaskExecution,
+    failure: RunFailure
+  ): void {
+    const { session, target } = this.requireTarget(runId, targetId);
+    target.error = failure;
+    if (isActivePhase(target.phase) && target.phase !== 'stopping') {
+      transitionTarget(target, 'stopping');
+    }
+    execution.terminate();
+    this.armStopTimeout(session, target);
+    syncSessionPhase(session);
+    this.emitSession(session);
+  }
+
   expectDebugSession(project: ProjectModel, sessionName: string, runId?: string, targetId?: string): void {
     if (!runId || !targetId) {
       const synthetic = this.beginRun(`project:${normalizePath(project.path)}`, sessionName, 'debug', [{ project }]);
@@ -168,7 +187,14 @@ export class ProcessManager implements vscode.Disposable {
       && (!targetId || candidate.targetId === targetId)
     );
     if (index >= 0) {
-      this.pendingDebugTargets.splice(index, 1);
+      const [pending] = this.pendingDebugTargets.splice(index, 1);
+      const found = this.findTarget(pending.runId, pending.targetId);
+      if (found?.target.phase === 'stopping' && !this.targetHasRuntime(pending.runId, pending.targetId)) {
+        transitionTarget(found.target, found.target.error ? 'failed' : 'stopped');
+        this.clearStopTimeout(pending.runId, pending.targetId);
+        syncSessionPhase(found.session);
+        this.emitSession(found.session);
+      }
     }
   }
 
@@ -230,7 +256,7 @@ export class ProcessManager implements vscode.Disposable {
 
   async stopRun(runId: string): Promise<void> {
     const session = this.sessionsById.get(runId);
-    if (session && sessionHasActiveTargets(session)) {
+    if (session && this.sessionIsBusy(session)) {
       await this.stopSession(session);
     }
   }
@@ -282,7 +308,8 @@ export class ProcessManager implements vscode.Disposable {
 
   private async stopSession(session: RunSessionState, projectPath?: string): Promise<void> {
     const targets = session.targets.filter(target =>
-      isActivePhase(target.phase) && (!projectPath || samePath(target.projectPath, projectPath))
+      (isActivePhase(target.phase) || this.targetHasRuntime(session.runId, target.targetId))
+      && (!projectPath || samePath(target.projectPath, projectPath))
     );
     if (targets.length === 0) {
       return;
@@ -290,7 +317,7 @@ export class ProcessManager implements vscode.Disposable {
 
     session.stopRequestedAt ??= Date.now();
     for (const target of targets) {
-      if (target.phase !== 'stopping') {
+      if (isActivePhase(target.phase) && target.phase !== 'stopping') {
         transitionTarget(target, 'stopping');
       }
     }
@@ -304,17 +331,18 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
 
-    const debugStops: Thenable<void>[] = [];
     for (const binding of this.debugBindings.values()) {
       if (binding?.runId === session.runId && targetIds.has(binding.targetId)) {
-        debugStops.push(vscode.debug.stopDebugging(binding.session));
+        void vscode.debug.stopDebugging(binding.session).then(undefined, error => {
+          this.output.appendLine(
+            `[${new Date().toISOString()}] [run ${session.runId}] stop request failed: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
       }
     }
-    await Promise.allSettled(debugStops);
 
     for (const target of targets) {
-      const hasRuntime = [...this.taskBindings.values()].some(binding => binding.runId === session.runId && binding.targetId === target.targetId)
-        || [...this.debugBindings.values()].some(binding => binding.runId === session.runId && binding.targetId === target.targetId);
+      const hasRuntime = this.targetHasRuntime(session.runId, target.targetId);
       if (!hasRuntime) {
         transitionTarget(target, 'stopped');
       } else {
@@ -338,6 +366,12 @@ export class ProcessManager implements vscode.Disposable {
     const target = this.requireTarget(pending.runId, pending.targetId).target;
     if (target.phase === 'starting') {
       this.setTargetPhase(pending.runId, pending.targetId, 'running');
+    } else if (target.phase === 'stopping') {
+      void vscode.debug.stopDebugging(debugSession).then(undefined, error => {
+        this.output.appendLine(
+          `[${new Date().toISOString()}] [run ${pending.runId}] stop-after-start failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
     }
   }
 
@@ -391,13 +425,9 @@ export class ProcessManager implements vscode.Disposable {
       return;
     }
     found.target.exitCode = exitCode;
-    const next: RunPhase = found.target.phase === 'stopping'
-      ? 'stopped'
-      : exitCode === undefined || exitCode === 0
-        ? 'succeeded'
-        : 'failed';
+    const next = completionPhaseForTarget(found.target, exitCode);
     transitionTarget(found.target, next);
-    if (next === 'failed') {
+    if (next === 'failed' && !found.target.error) {
       found.target.error = {
         code: 'unexpected-exit',
         message: `${found.target.projectName} exited with code ${exitCode}.`
@@ -438,7 +468,7 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   private waitForTerminalSession(session: RunSessionState, timeoutMs: number): Promise<void> {
-    if (!sessionHasActiveTargets(session)) {
+    if (!this.sessionIsBusy(session)) {
       return Promise.resolve();
     }
     return new Promise(resolve => {
@@ -447,7 +477,7 @@ export class ProcessManager implements vscode.Disposable {
         resolve();
       }, timeoutMs);
       const disposable = this.onDidChangeSession(event => {
-        if (event.session.runId === session.runId && !sessionHasActiveTargets(event.session)) {
+        if (event.session.runId === session.runId && !this.sessionIsBusy(event.session)) {
           clearTimeout(timer);
           disposable.dispose();
           resolve();
@@ -495,14 +525,30 @@ export class ProcessManager implements vscode.Disposable {
     this.output.appendLine(`[${new Date().toISOString()}] [run ${session.runId}] ${session.configLabel}: ${session.phase}${detail}`);
     this.onDidChangeSessionEmitter.fire({ session });
     this.onDidChangeRunningStateEmitter.fire(this.hasRunningProcesses());
+    this.pruneCompletedSessions();
+  }
+
+  private pruneCompletedSessions(): void {
+    const completed = [...this.sessionsById.values()]
+      .filter(session => !this.sessionIsBusy(session))
+      .sort((a, b) => b.startedAt - a.startedAt);
+    for (const session of completed.slice(retainedCompletedSessions)) {
+      this.sessionsById.delete(session.runId);
+    }
+  }
+
+  private targetHasRuntime(runId: string, targetId: string): boolean {
+    return [...this.taskBindings.values()].some(binding => binding.runId === runId && binding.targetId === targetId)
+      || [...this.debugBindings.values()].some(binding => binding.runId === runId && binding.targetId === targetId)
+      || this.pendingDebugTargets.some(binding => binding.runId === runId && binding.targetId === targetId);
+  }
+
+  private sessionIsBusy(session: RunSessionState): boolean {
+    return session.targets.some(target => isActivePhase(target.phase) || this.targetHasRuntime(session.runId, target.targetId));
   }
 }
 
 function highestPriorityPhase(phases: readonly RunPhase[]): RunPhase | undefined {
-  const priority: RunPhase[] = ['stopping', 'building', 'starting', 'running', 'queued'];
+  const priority: RunPhase[] = ['stopping', 'building', 'starting', 'running', 'queued', 'failed'];
   return priority.find(phase => phases.includes(phase));
-}
-
-function sessionHasActiveTargets(session: RunSessionState): boolean {
-  return session.targets.some(target => isActivePhase(target.phase));
 }

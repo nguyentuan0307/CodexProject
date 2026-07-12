@@ -121,6 +121,30 @@ Key files:
 - `src/processManager.ts`
 - `src/debugRunner.ts`
 
+## Run Configuration Lifecycle
+
+- Every Run, Debug, or Build configuration creates a runtime session with a unique run id and target ids.
+- Single and compound configurations expose `queued`, `building`, `starting`, `running`, `stopping`, and terminal phases.
+- Duplicate starts of the same configuration are rejected in the command layer, independently of menu refresh timing.
+- Task cleanup uses `onDidEndTask` as the completion signal and `onDidEndTaskProcess` to capture the exit code.
+- Stop requests retain the `stopping` phase until VSCode confirms task/debug-session termination.
+- Build waits have a configurable timeout through `dotnetSolutionNavigator.buildTimeoutSeconds`.
+- Debug sessions are matched through run/target markers instead of display names.
+- Compound startup is sequential and stops previously started targets when a later target fails.
+- Project and Run Configuration context menus are gated by runtime state.
+- Run Configuration nodes and the status bar show active or most recent lifecycle status.
+- Secondary Solution view actions are placed in the overflow menu; the primary toolbar contains Run, Debug, Stop All, and Refresh.
+- A `.NET Navigator` output channel records lifecycle transitions with run ids.
+
+Key files:
+- `src/runSessionState.ts`
+- `src/processManager.ts`
+- `src/debugRunner.ts`
+- `src/treeProvider.ts`
+- `src/statusBar.ts`
+- `src/test/runSessionState.test.ts`
+- `src/test/processManager.test.ts`
+
 ## Verification Notes
 
 Manual/mock checks performed during implementation:

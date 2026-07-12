@@ -1,10 +1,12 @@
 import { buildCodeMask } from '../csharpLexer';
 import { joinLines, leadingWhitespace, splitLines } from '../textLines';
 import { formatCSharpWrapping } from './wrapping';
+import { normalizeMultilineArgumentLists } from './multilineList';
 import { LeadingCommaWrapStyle, PassContext } from './types';
 
 export function formatLeadingCommas(text: string, ctx: PassContext, style: LeadingCommaWrapStyle = 'wrapIfLong'): string {
-  return normalizeMultilineLeadingCommas(formatCSharpWrapping(text, ctx, { style }), ctx);
+  const wrapped = formatCSharpWrapping(text, ctx, { style });
+  return normalizeMultilineLeadingCommas(normalizeMultilineArgumentLists(wrapped, ctx), ctx);
 }
 
 function normalizeMultilineLeadingCommas(text: string, ctx: PassContext): string {

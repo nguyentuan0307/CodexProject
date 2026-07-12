@@ -214,6 +214,45 @@ test('wraps realistic nested, named, lambda, and relational arguments safely', (
   }
 });
 
+test('normalizes the reported UpdateManyAsync multiline argument case end to end', () => {
+  const input = [
+    'public static async Task UpdateLastMessageSentAt(this IRepository<Prospect> repository, List<string> prospectIds)',
+    '\t{',
+    '\t\tawait repository.Collection.UpdateManyAsync(',
+    '\t\t\t\t_ => prospectIds.Contains(_.Id!),',
+    '\t\t\tBuilders<Prospect>.Update',
+    '\t\t\t    .Set(_ => _.UpdatedAt, DateTime.UtcNow)',
+    '\t\t\t    .Set(_ => _.LastMessageSentAt, DateTime.UtcNow)',
+    '\t\t);',
+    '\t}',
+    '}'
+  ].join('\n');
+  const settings = {
+    normalizeIndentWhitespace: true,
+    enableLeadingComma: true,
+    enableFluentChainWrap: true,
+    enableBlankLineRules: true,
+    leadingCommaWrapStyle: 'wrapIfLong' as const
+  };
+  const local = { ...ctx, fluentChainMinSegments: 2 };
+  const output = runFormatPasses(input, settings, local);
+
+  assert.equal(output, [
+    'public static async Task UpdateLastMessageSentAt(this IRepository<Prospect> repository, List<string> prospectIds)',
+    '\t{',
+    '\t\tawait repository.Collection.UpdateManyAsync(',
+    '\t\t\t_ => prospectIds.Contains(_.Id!)',
+    '\t\t\t, Builders<Prospect>.Update',
+    '\t\t\t\t.Set(_ => _.UpdatedAt, DateTime.UtcNow)',
+    '\t\t\t\t.Set(_ => _.LastMessageSentAt, DateTime.UtcNow)',
+    '\t\t);',
+    '\t}',
+    '}'
+  ].join('\n'));
+  assert.equal(runFormatPasses(output, settings, local), output);
+  assert.equal(stripWhitespace(output), stripWhitespace(input));
+});
+
 test('collapses repeated blank lines without removing region spacing', () => {
   const input = [
     '#region Password',

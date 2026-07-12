@@ -53,6 +53,13 @@ export async function startTarget(project: ProjectModel, profile: LaunchProfile 
     }
   }
 
+  if (options.processManager && runId && targetId) {
+    const target = options.processManager.getSession(runId)?.targets.find(candidate => candidate.targetId === targetId);
+    if (!target || target.phase === 'stopping' || target.phase === 'stopped' || target.phase === 'failed') {
+      return false;
+    }
+  }
+
   if (shouldBuildBeforeRun()) {
     const built = await buildProject(project, options.processManager, runId, targetId);
     if (!built) {
@@ -106,8 +113,15 @@ export async function startTarget(project: ProjectModel, profile: LaunchProfile 
   }
 
   let started = false;
+  const startTimeoutMs = Math.max(1, vscode.workspace
+    .getConfiguration('dotnetSolutionNavigator')
+    .get<number>('startTimeoutSeconds', 30)) * 1000;
   try {
-    started = await vscode.debug.startDebugging(workspaceFolder, configuration);
+    started = await withTimeout(
+      vscode.debug.startDebugging(workspaceFolder, configuration),
+      startTimeoutMs,
+      `Starting ${project.name} timed out.`
+    );
     if (!started) {
       if (options.processManager && runId && targetId) {
         options.processManager.failTarget(runId, targetId, {
@@ -118,7 +132,9 @@ export async function startTarget(project: ProjectModel, profile: LaunchProfile 
       vscode.window.showErrorMessage('Could not start .NET debugging. Install or enable C# Dev Kit / C# extension, then try again.');
     }
   } catch (error) {
-    if (options.processManager && runId && targetId) {
+    if (error instanceof OperationTimeoutError && options.processManager && runId && targetId) {
+      options.processManager.expireExpectedDebugSession(project, runId, targetId, error.message);
+    } else if (options.processManager && runId && targetId) {
       options.processManager.failTarget(runId, targetId, {
         code: 'start-error',
         message: `Could not start ${project.name}.`,
@@ -133,6 +149,17 @@ export async function startTarget(project: ProjectModel, profile: LaunchProfile 
   }
 
   if (started && options.processManager && runId && targetId) {
+    try {
+      const confirmed = await options.processManager.waitForTargetRunning(runId, targetId, startTimeoutMs);
+      if (!confirmed) {
+        return false;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      options.processManager.expireExpectedDebugSession(project, runId, targetId, message);
+      vscode.window.showErrorMessage(`Could not start ${project.name}: ${message}`);
+      return false;
+    }
     const currentTarget = options.processManager.getSession(runId)?.targets.find(target => target.targetId === targetId);
     if (currentTarget?.phase === 'stopping' || currentTarget?.phase === 'stopped') {
       return false;
@@ -423,4 +450,22 @@ function parseCommandLineArgs(value: string | undefined): string[] {
   }
 
   return args;
+}
+
+class OperationTimeoutError extends Error {}
+
+function withTimeout<T>(promise: Thenable<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new OperationTimeoutError(message)), timeoutMs);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }

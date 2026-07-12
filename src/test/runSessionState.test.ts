@@ -27,6 +27,13 @@ test('accepts the normal run lifecycle', () => {
   assert.equal(isActivePhase(state.phase), false);
 });
 
+test('accepts a successful build-only lifecycle', () => {
+  const state = target('queued');
+  transitionTarget(state, 'building');
+  transitionTarget(state, 'succeeded');
+  assert.equal(state.phase, 'succeeded');
+});
+
 test('rejects transitions out of a terminal phase', () => {
   const state = target('stopped');
   assert.throws(() => transitionTarget(state, 'running'), /Invalid run target transition/);

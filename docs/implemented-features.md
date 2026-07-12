@@ -129,7 +129,12 @@ Key files:
 - Task cleanup uses `onDidEndTask` as the completion signal and `onDidEndTaskProcess` to capture the exit code.
 - Stop requests retain the `stopping` phase until VSCode confirms task/debug-session termination.
 - Build waits have a configurable timeout through `dotnetSolutionNavigator.buildTimeoutSeconds`.
+- Run/debug startup has a configurable timeout through `dotnetSolutionNavigator.startTimeoutSeconds`.
 - Debug sessions are matched through run/target markers instead of display names.
+- Debug sessions arriving after Start timeout or Stop are tombstoned, tracked, and stopped immediately.
+- A task handle arriving after Stop is terminated immediately and remains busy until VSCode confirms completion.
+- Unconfirmed task/debug termination remains busy, preventing a replacement run from overlapping a possibly-live process.
+- After Stop timeout, an active tracked task PID is force-killed when `dotnetSolutionNavigator.forceKillTaskOnStopTimeout` is enabled. Windows uses `taskkill /T /F` for the owned process tree; debug sessions without an exposed PID remain blocked rather than guessing a process.
 - Compound startup is sequential and stops previously started targets when a later target fails.
 - Project and Run Configuration context menus are gated by runtime state.
 - Run Configuration nodes and the status bar show active or most recent lifecycle status.

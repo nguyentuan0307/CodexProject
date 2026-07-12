@@ -564,6 +564,17 @@
           "minimum": 1,
           "description": "Maximum time in seconds to wait for a build before marking the run as failed."
         },
+        "dotnetSolutionNavigator.startTimeoutSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "description": "Maximum time in seconds to wait for a debug or run session to start."
+        },
+        "dotnetSolutionNavigator.forceKillTaskOnStopTimeout": {
+          "type": "boolean",
+          "default": true,
+          "description": "Force-kill the tracked task PID after Stop times out. On Windows this kills the owned process tree."
+        },
         "dotnetSolutionNavigator.iconMode": {
           "type": "string",
           "enum": [

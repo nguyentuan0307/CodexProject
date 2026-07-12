@@ -14,6 +14,7 @@ export type RunErrorCode =
   | 'build-failed'
   | 'build-timeout'
   | 'start-rejected'
+  | 'start-timeout'
   | 'start-error'
   | 'stop-timeout'
   | 'target-not-found'
@@ -52,7 +53,7 @@ const terminalPhases = new Set<RunPhase>(['succeeded', 'failed', 'stopped']);
 
 const allowedTransitions: Readonly<Record<RunPhase, ReadonlySet<RunPhase>>> = {
   queued: new Set(['building', 'starting', 'stopping', 'failed', 'stopped']),
-  building: new Set(['starting', 'stopping', 'failed', 'stopped']),
+  building: new Set(['starting', 'stopping', 'succeeded', 'failed', 'stopped']),
   starting: new Set(['running', 'stopping', 'failed', 'stopped']),
   running: new Set(['stopping', 'succeeded', 'failed', 'stopped']),
   stopping: new Set(['stopped', 'failed']),

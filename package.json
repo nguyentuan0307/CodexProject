@@ -297,7 +297,7 @@
         {
           "command": "dotnetSolutionNavigator.selectOpenedFile",
           "when": "view == dotnetSolutionNavigator",
-          "group": "2_view@0"
+          "group": "navigation@0"
         },
         {
           "command": "dotnetSolutionNavigator.runActiveConfig",

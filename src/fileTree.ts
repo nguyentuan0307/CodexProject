@@ -51,6 +51,28 @@ export async function readDirectoryNodes(directoryPath: string, projectRoot: str
   return [...folders, ...(enableFileNesting ? nestFiles(files) : files)].sort(compareNodes);
 }
 
+export async function readDockerProjectNodes(project: ProjectModel): Promise<TreeNode[]> {
+  const entries = await fs.readdir(project.directory, { withFileTypes: true });
+  const nodes: TreeNode[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !isDockerProjectFile(project, entry.name)) {
+      continue;
+    }
+
+    const resourcePath = path.join(project.directory, entry.name);
+    nodes.push({
+      kind: 'file',
+      label: entry.name,
+      resourcePath,
+      project,
+      collapsibleState: vscode.TreeItemCollapsibleState.None
+    });
+  }
+
+  return nestFiles(nodes).sort(compareNodes);
+}
+
 function getHiddenFolders(): Set<string> {
   const values = vscode.workspace
     .getConfiguration('dotnetSolutionNavigator')
@@ -85,4 +107,11 @@ function compareNodes(a: TreeNode, b: TreeNode): number {
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function isDockerProjectFile(_project: ProjectModel, fileName: string): boolean {
+  const normalized = fileName.toLowerCase();
+
+  return normalized === '.dockerignore'
+    || /^docker-compose(?:\..*)?\.ya?ml$/i.test(fileName);
 }

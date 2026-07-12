@@ -23,6 +23,8 @@ const defaultRules: FileNestingRule[] = [
   { parentPattern: '${base}.tsx', childPattern: '${base}.js.map' },
   { parentPattern: '${base}.tsx', childPattern: '${base}.d.ts' },
   { parentPattern: 'package.json', childPattern: 'package-lock.json' },
+  { parentPattern: 'docker-compose.yml', childPattern: 'docker-compose.*.yml' },
+  { parentPattern: 'docker-compose.yaml', childPattern: 'docker-compose.*.yaml' },
   { parentPattern: '${base}.csproj', childPattern: '${base}.csproj.user' }
 ];
 

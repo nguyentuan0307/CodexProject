@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { readDirectoryNodes } from './fileTree';
+import { readDirectoryNodes, readDockerProjectNodes } from './fileTree';
 import { ProjectModel, SolutionModel, TreeNode } from './models';
 import { isRunnableProject, isTestProject } from './projectCapabilities';
 import * as runConfigStore from './runConfigStore';
@@ -99,6 +99,11 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
     if (node.kind === 'project' && node.project) {
       const nodes: TreeNode[] = [];
+      if (node.project.kind === 'docker') {
+        nodes.push(...await readDockerProjectNodes(node.project));
+        return nodes;
+      }
+
       if (vscode.workspace.getConfiguration('dotnetSolutionNavigator').get<boolean>('showDependencies', true)) {
         nodes.push(this.dependenciesNode(node.project));
       }

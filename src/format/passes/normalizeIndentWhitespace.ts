@@ -1,5 +1,5 @@
 import { buildCodeMask } from '../csharpLexer';
-import { joinLines, leadingWhitespace, splitLines, tabsForLeadingWhitespace } from '../textLines';
+import { joinLines, leadingWhitespace, leadingWidth, splitLines } from '../textLines';
 import { PassContext } from './types';
 
 export function normalizeIndentWhitespace(text: string, ctx: PassContext): string {
@@ -17,8 +17,13 @@ export function normalizeIndentWhitespace(text: string, ctx: PassContext): strin
       continue;
     }
 
-    line.text = tabsForLeadingWhitespace(indent, ctx.tabSize) + line.text.slice(indent.length);
+    line.text = normalizedIndent(indent, ctx) + line.text.slice(indent.length);
   }
 
   return joinLines(lines);
+}
+
+function normalizedIndent(whitespace: string, ctx: PassContext): string {
+  const levels = Math.ceil(leadingWidth(whitespace, ctx.tabSize) / ctx.tabSize);
+  return ctx.indentUnit.repeat(levels);
 }

@@ -15,7 +15,10 @@ export function formatFluentChains(text: string, ctx: PassContext): string {
       continue;
     }
 
-    const baseIndent = inferPreviousIndent(lines, i) ?? leadingWhitespace(line.text);
+    const previousIndent = inferPreviousIndent(lines, i);
+    const targetIndent = previousIndent === undefined
+      ? leadingWhitespace(line.text)
+      : previousIndent + ctx.indentUnit;
     const runStart = i;
     let runEnd = i;
     let dotCount = 0;
@@ -65,7 +68,7 @@ export function formatFluentChains(text: string, ctx: PassContext): string {
     if (dotCount >= ctx.fluentChainMinSegments) {
       for (let j = runStart; j < runEnd; j++) {
         if (rewriteLines.has(j)) {
-          lines[j].text = baseIndent + ctx.indentUnit + lines[j].text.trimStart();
+          lines[j].text = targetIndent + lines[j].text.trimStart();
         }
       }
     }

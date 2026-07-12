@@ -64,6 +64,16 @@ test('wraps long single-line argument lists with leading commas', () => {
   assert.equal(formatLeadingCommas(output, ctx), output);
 });
 
+test('normalizes indentation with spaces when the editor uses insertSpaces', () => {
+  const spaces = { ...ctx, indentUnit: '    ' };
+  const input = '      var first = 1;\n\t  var second = 2;';
+  const output = normalizeIndentWhitespace(input, spaces);
+
+  assert.equal(output, '        var first = 1;\n        var second = 2;');
+  assert.equal(output.includes('\t'), false);
+  assert.equal(normalizeIndentWhitespace(output, spaces), output);
+});
+
 test('keeps nested calls, generic commas, strings, and suffixes intact', () => {
   const local = { ...ctx, wrapColumn: 55 };
   const input = '\tvar value = Call(A(one, two), B<One, Two>(three, four), "five,six", seventh).ToString();';
@@ -112,6 +122,20 @@ test('uses the first leading-comma continuation as anchor when the first item is
     '\t\t\t\t\t, cancellationToken);'
   ].join('\n'));
   assert.equal(formatLeadingCommas(output, ctx), output);
+});
+
+test('aligns a strict-selection fragment that contains only leading-comma lines', () => {
+  const input = [
+    '\t\t\t\t, firstSelectedArgument',
+    '\t\t, secondSelectedArgument',
+    '\t\t\t, thirdSelectedArgument'
+  ].join('\n');
+
+  assert.equal(formatLeadingCommas(input, ctx), [
+    '\t\t\t\t, firstSelectedArgument',
+    '\t\t\t\t, secondSelectedArgument',
+    '\t\t\t\t, thirdSelectedArgument'
+  ].join('\n'));
 });
 
 test('normalizes fluent chain indentation and object initializer inside chain', () => {
@@ -199,6 +223,21 @@ test('aligns null-conditional fluent continuations', () => {
     '\tvar result = source',
     '\t\t?.Where(x => x.Enabled)',
     '\t\t?.ToList();'
+  ].join('\n'));
+});
+
+test('uses the first fluent line as anchor when a strict selection omits the parent expression', () => {
+  const local = { ...ctx, fluentChainMinSegments: 2 };
+  const input = [
+    '\t\t\t\t.Set(_ => _.UpdatedAt, DateTime.UtcNow)',
+    '\t\t.Set(_ => _.LastMessageSentAt, DateTime.UtcNow)',
+    '\t\t\t.Set(_ => _.Enabled, true)'
+  ].join('\n');
+
+  assert.equal(formatFluentChains(input, local), [
+    '\t\t\t\t.Set(_ => _.UpdatedAt, DateTime.UtcNow)',
+    '\t\t\t\t.Set(_ => _.LastMessageSentAt, DateTime.UtcNow)',
+    '\t\t\t\t.Set(_ => _.Enabled, true)'
   ].join('\n'));
 });
 

@@ -8,10 +8,12 @@ export type SolutionOperation = 'build' | 'rebuild' | 'clean';
 
 export async function runDotnetForProject(
   project: ProjectModel,
-  verb: 'build' | 'test' | 'clean',
+  verb: 'build' | 'rebuild' | 'test' | 'clean',
   processManager?: ProcessManager
 ): Promise<void> {
-  const command = `dotnet ${verb} "${project.path}"`;
+  const command = verb === 'rebuild'
+    ? `dotnet build "${project.path}" --no-incremental`
+    : `dotnet ${verb} "${project.path}"`;
   const task = new vscode.Task(
     { type: 'dotnet', task: verb, project: project.path },
     vscode.TaskScope.Workspace,

@@ -196,6 +196,30 @@ Key files:
 - `package.json`
 - `src/test/solutionFeatures.test.ts`
 
+## Solution Explorer UI Refresh
+
+- `Run Configurations` is now a separate native view in the same .NET activity container instead of occupying the first node of the Solution tree.
+- Both views share the same solution provider, workspace state, active configuration, and lifecycle events, so splitting the UI does not duplicate state.
+- The Solution toolbar keeps only reveal-active-file, native tree filter, conditional Stop All, and Refresh as primary actions. Run/Debug/Add Configuration actions live on the Run Configurations view.
+- Solution root labels show only the solution name; project count moved to the native description and the tooltip contains the file/path summary.
+- Project descriptions omit the project kind already represented by the icon. They show a compact framework summary, startup marker, and active lifecycle phase.
+- Multi-target projects render as the first framework plus a remaining count; full frameworks remain available in the tooltip.
+- Project icons temporarily become a spinner or running icon during active lifecycle phases, then return to their type icon.
+- Runnable project rows expose at most Run and Debug inline hover actions; active rows replace them with Stop.
+- Project context actions are grouped in workflow order: Run, Build, Project, Navigation, Terminal, Add, and Copy.
+- Added project `Rebuild` using `dotnet build --no-incremental`, plus solution-file and solution-terminal context actions.
+- Status bar primary controls were reduced to configuration selector, Run, and Debug; an active operation replaces Run/Debug with Stop.
+- Added `iconMode: auto` as the new default. It combines Rider project and special-folder icons with the active file/folder icon theme while preserving `rider`, `theme`, and `minimal` modes.
+
+Key files:
+
+- `src/runConfigTreeProvider.ts`
+- `src/treeProvider.ts`
+- `src/statusBar.ts`
+- `src/extension.ts`
+- `package.json`
+- `src/test/solutionFeatures.test.ts`
+
 ## Verification Notes
 
 Manual/mock checks performed during implementation:

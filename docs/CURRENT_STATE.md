@@ -10,6 +10,7 @@ Read this file first when reopening the repository or starting a new Codex task.
 `Rider-like Solution Navigator` is a VS Code extension for .NET development. Its implemented areas are:
 
 - Rider-style solution/project/file tree, logical solution folders, dependencies, file nesting, search, and reveal-active-file behavior.
+- Separate native Solution and Run Configurations views with compact toolbars, project hover actions, lifecycle-aware icons/descriptions, workflow-grouped context menus, and an adaptive `auto` icon mode.
 - File/folder creation, rename, move, delete, copy-path, and reveal-in-OS actions.
 - Project and user-managed run configurations, compound configurations, build/run/debug/test/clean, lifecycle tracking, status bar controls, cancellation, timeout, and process cleanup.
 - Solution-level Build/Rebuild/Clean operations with cancellable progress, shared lifecycle tracking, build configuration, timeout, output, and Stop All integration.
@@ -19,6 +20,8 @@ Read this file first when reopening the repository or starting a new Codex task.
 Solution tree filtering uses VS Code's native Tree Find Control inside the Solution view. The toolbar button focuses the tree and opens the native compact box; closing it removes the box. VS Code owns highlight/filter and fuzzy matching, so the extension does not mutate the solution tree or interfere with native Explorer behavior.
 
 When no .NET workspace content is available, the native Welcome view offers Open Folder and Select Solution actions. Direct project and solution build operations show cancellable progress; Run and Debug remain on the less intrusive status bar/output UI.
+
+The Solution root label is compact, project count is a description, and project rows show framework/startup/lifecycle without repeating their icon type. Run Configurations uses a separate view backed by the same provider and state. The status bar normally shows only configuration, Run, and Debug, switching to Stop while active.
 
 See [implemented-features.md](implemented-features.md) for behavior and key files for every product area.
 
@@ -70,7 +73,7 @@ All names are prefixed with `dotnetSolutionNavigator.`:
 
 At this checkpoint:
 
-- `npm test`: 135/135 tests passed.
+- `npm test`: 137/137 tests passed.
 - VSIX packaging succeeded.
 - Packaged artifact: `D:\VibingCode\CodexProject\rider-like-solution-navigator-0.0.1.vsix`.
 - Latest formatter checkpoint commit: `1dab400 fix: format strict selection fragments safely`.

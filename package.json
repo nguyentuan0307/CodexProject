@@ -17,6 +17,7 @@
     "onStartupFinished",
     "onLanguage:csharp",
     "onView:dotnetSolutionNavigator",
+    "onView:dotnetSolutionNavigator.runConfigurations",
     "onCommand:dotnetSolutionNavigator.refresh",
     "onCommand:dotnetSolutionNavigator.searchSolutionTree",
     "onCommand:dotnetSolutionNavigator.buildSolution",
@@ -42,6 +43,10 @@
         {
           "id": "dotnetSolutionNavigator",
           "name": "Solution"
+        },
+        {
+          "id": "dotnetSolutionNavigator.runConfigurations",
+          "name": "Run Configurations"
         }
       ]
     },
@@ -91,8 +96,21 @@
         "title": "Open Project File"
       },
       {
+        "command": "dotnetSolutionNavigator.openSolutionFile",
+        "title": "Open Solution File"
+      },
+      {
+        "command": "dotnetSolutionNavigator.openSolutionTerminal",
+        "title": "Open Solution Terminal",
+        "icon": "$(terminal)"
+      },
+      {
         "command": "dotnetSolutionNavigator.buildProject",
         "title": "Build"
+      },
+      {
+        "command": "dotnetSolutionNavigator.rebuildProject",
+        "title": "Rebuild"
       },
       {
         "command": "dotnetSolutionNavigator.buildSolution",
@@ -327,8 +345,8 @@
       "view/title": [
         {
           "command": "dotnetSolutionNavigator.addRunConfig",
-          "when": "view == dotnetSolutionNavigator",
-          "group": "1_config@0"
+          "when": "view == dotnetSolutionNavigator.runConfigurations",
+          "group": "navigation@0"
         },
         {
           "command": "dotnetSolutionNavigator.selectOpenedFile",
@@ -342,13 +360,18 @@
         },
         {
           "command": "dotnetSolutionNavigator.runActiveConfig",
-          "when": "view == dotnetSolutionNavigator && !dotnetSolutionNavigator.activeConfigBusy",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && !dotnetSolutionNavigator.activeConfigBusy",
           "group": "navigation@1"
         },
         {
           "command": "dotnetSolutionNavigator.debugActiveConfig",
-          "when": "view == dotnetSolutionNavigator && !dotnetSolutionNavigator.activeConfigBusy",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && !dotnetSolutionNavigator.activeConfigBusy",
           "group": "navigation@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.stopActiveConfig",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && dotnetSolutionNavigator.activeConfigBusy",
+          "group": "navigation@3"
         },
         {
           "command": "dotnetSolutionNavigator.stopAll",
@@ -367,12 +390,12 @@
         },
         {
           "command": "dotnetSolutionNavigator.selectRunConfig",
-          "when": "view == dotnetSolutionNavigator",
+          "when": "view == dotnetSolutionNavigator.runConfigurations",
           "group": "1_config@1"
         },
         {
           "command": "dotnetSolutionNavigator.buildActiveConfig",
-          "when": "view == dotnetSolutionNavigator && !dotnetSolutionNavigator.activeConfigBusy",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && !dotnetSolutionNavigator.activeConfigBusy",
           "group": "1_config@2"
         },
         {
@@ -393,6 +416,21 @@
       ],
       "view/item/context": [
         {
+          "command": "dotnetSolutionNavigator.runProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /busy/)",
+          "group": "inline@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.debugProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /busy/)",
+          "group": "inline@2"
+        },
+        {
+          "command": "dotnetSolutionNavigator.stopProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /busy/ && !(viewItem =~ /stopping/)",
+          "group": "inline@1"
+        },
+        {
           "command": "dotnetSolutionNavigator.buildSolution",
           "when": "view == dotnetSolutionNavigator && viewItem == solution",
           "group": "solution@1"
@@ -408,9 +446,24 @@
           "group": "solution@3"
         },
         {
+          "command": "dotnetSolutionNavigator.openSolutionFile",
+          "when": "view == dotnetSolutionNavigator && viewItem == solution",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.openSolutionTerminal",
+          "when": "view == dotnetSolutionNavigator && viewItem == solution",
+          "group": "terminal@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.selectSolution",
+          "when": "view == dotnetSolutionNavigator && viewItem == solution",
+          "group": "navigation@2"
+        },
+        {
           "submenu": "dotnetSolutionNavigator.add",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /folder|project/",
-          "group": "add@0"
+          "group": "6_add@0"
         },
         {
           "command": "dotnetSolutionNavigator.openItem",
@@ -435,91 +488,96 @@
         {
           "command": "dotnetSolutionNavigator.copyPath",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
-          "group": "copy@1"
+          "group": "7_copy@1"
         },
         {
           "command": "dotnetSolutionNavigator.copyRelativePath",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
-          "group": "copy@2"
+          "group": "7_copy@2"
         },
         {
           "command": "dotnetSolutionNavigator.revealInOs",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /file|folder|project/",
-          "group": "copy@3"
+          "group": "7_copy@3"
         },
         {
           "command": "dotnetSolutionNavigator.openProjectFile",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
-          "group": "navigation@2"
+          "group": "4_navigation@1"
         },
         {
           "command": "dotnetSolutionNavigator.setStartupProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
-          "group": "project@1"
+          "group": "3_project@1"
         },
         {
           "command": "dotnetSolutionNavigator.runProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /busy/)",
-          "group": "project@2"
+          "group": "1_run@1"
         },
         {
           "command": "dotnetSolutionNavigator.debugProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /runnable/ && !(viewItem =~ /busy/)",
-          "group": "project@2b"
+          "group": "1_run@2"
         },
         {
           "command": "dotnetSolutionNavigator.buildProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
-          "group": "project@3"
+          "group": "2_build@1"
+        },
+        {
+          "command": "dotnetSolutionNavigator.rebuildProject",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
+          "group": "2_build@2"
         },
         {
           "command": "dotnetSolutionNavigator.stopProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /busy/ && !(viewItem =~ /stopping/)",
-          "group": "project@3b"
+          "group": "1_run@3"
         },
         {
           "command": "dotnetSolutionNavigator.testProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/ && viewItem =~ /test/",
-          "group": "project@4"
+          "group": "2_build@4"
         },
         {
           "command": "dotnetSolutionNavigator.cleanProject",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /project/",
-          "group": "project@5"
+          "group": "2_build@3"
         },
         {
           "command": "dotnetSolutionNavigator.openTerminalHere",
           "when": "view == dotnetSolutionNavigator && viewItem =~ /folder|project/",
-          "group": "terminal@1"
+          "group": "5_terminal@1"
         },
         {
           "command": "dotnetSolutionNavigator.runConfigNode",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
           "group": "inline@1"
         },
         {
           "command": "dotnetSolutionNavigator.debugConfigNode",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
           "group": "inline@2"
         },
         {
           "command": "dotnetSolutionNavigator.stopConfigNode",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && viewItem =~ /busy/ && !(viewItem =~ /stopping/)",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/ && viewItem =~ /busy/ && !(viewItem =~ /stopping/)",
           "group": "inline@1"
         },
         {
           "command": "dotnetSolutionNavigator.showRunOutput",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && viewItem =~ /busy/",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/ && viewItem =~ /busy/",
           "group": "inline@2"
         },
         {
           "command": "dotnetSolutionNavigator.removeRunConfig",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/ && !(viewItem =~ /busy/)",
           "group": "inline@3"
         },
         {
           "command": "dotnetSolutionNavigator.setActiveConfig",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /runConfig/",
+          "when": "view == dotnetSolutionNavigator.runConfigurations && viewItem =~ /runConfig/",
           "group": "cfg@1"
         }
       ],
@@ -634,12 +692,13 @@
         "dotnetSolutionNavigator.iconMode": {
           "type": "string",
           "enum": [
+            "auto",
             "rider",
             "theme",
             "minimal"
           ],
-          "default": "rider",
-          "description": "Icon style used by the .NET solution tree."
+          "default": "auto",
+          "description": "Icon style used by the .NET solution tree. Auto combines Rider project/special-folder icons with the active file icon theme."
         },
         "dotnetSolutionNavigator.enableFileNesting": {
           "type": "boolean",

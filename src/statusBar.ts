@@ -7,17 +7,15 @@ let configItem: vscode.StatusBarItem | undefined;
 let stopItem: vscode.StatusBarItem | undefined;
 let runItem: vscode.StatusBarItem | undefined;
 let debugItem: vscode.StatusBarItem | undefined;
-let buildItem: vscode.StatusBarItem | undefined;
 
 export function createStatusBar(): vscode.StatusBarItem[] {
-  buildItem = makeItem('$(tools)', 'dotnetSolutionNavigator.buildActiveConfig', 'Build active run configuration', 104);
   configItem = makeItem('$(rocket) No config', 'dotnetSolutionNavigator.selectRunConfig', 'Select run configuration', 103);
   runItem = makeItem('$(play)', 'dotnetSolutionNavigator.runActiveConfig', 'Run active configuration', 102);
   debugItem = makeItem('$(bug)', 'dotnetSolutionNavigator.debugActiveConfig', 'Debug active configuration', 101);
   stopItem = makeItem('$(stop-circle)', 'dotnetSolutionNavigator.stopActiveConfig', 'Stop active run configuration', 100);
   stopItem.hide();
 
-  return [buildItem, configItem, runItem, debugItem, stopItem];
+  return [configItem, runItem, debugItem, stopItem];
 }
 
 export function updateStatusBar(
@@ -46,7 +44,6 @@ export function updateStatusBar(
           : 'rocket';
   configItem.text = `$(${icon}) ${active?.label ?? 'No config'}${displayPhase ? ` · ${displayPhase}` : ''}`;
   if (phase) {
-    buildItem?.hide();
     runItem?.hide();
     debugItem?.hide();
     if (phase === 'stopping') {
@@ -55,7 +52,6 @@ export function updateStatusBar(
       stopItem?.show();
     }
   } else {
-    buildItem?.show();
     runItem?.show();
     debugItem?.show();
     stopItem?.hide();

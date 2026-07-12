@@ -13,6 +13,7 @@ import { mapWorktreeRangeToHead } from './git/lineMapping';
 import { ProjectModel, RunConfig, SolutionModel, TreeNode } from './models';
 import { isRunnableProject } from './projectCapabilities';
 import { ProcessManager } from './processManager';
+import { RunConfigTreeProvider } from './runConfigTreeProvider';
 import * as runConfigStore from './runConfigStore';
 import { createStatusBar, updateStatusBar } from './statusBar';
 import { DotnetTreeProvider } from './treeProvider';
@@ -39,6 +40,10 @@ export function activate(context: vscode.ExtensionContext): void {
     dragAndDropController: interaction,
     showCollapseAll: true
   });
+  const runConfigTreeView = vscode.window.createTreeView('dotnetSolutionNavigator.runConfigurations', {
+    treeDataProvider: new RunConfigTreeProvider(provider),
+    showCollapseAll: false
+  });
 
   const statusItems = createStatusBar();
   const refreshStatusBar = () => {
@@ -58,6 +63,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     treeView,
+    runConfigTreeView,
     processManager,
     ...statusItems,
     provider.onDidChangeTreeData(refreshStatusBar),
@@ -68,7 +74,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('dotnetSolutionNavigator.searchSolutionTree', openSolutionTreeFind),
     vscode.commands.registerCommand('dotnetSolutionNavigator.openItem', (node: TreeNode) => openItem(provider, treeView, node)),
     vscode.commands.registerCommand('dotnetSolutionNavigator.openProjectFile', openProjectFile),
+    vscode.commands.registerCommand('dotnetSolutionNavigator.openSolutionFile', () => openSolutionFile(provider)),
+    vscode.commands.registerCommand('dotnetSolutionNavigator.openSolutionTerminal', () => openSolutionTerminal(provider)),
     vscode.commands.registerCommand('dotnetSolutionNavigator.buildProject', (node: TreeNode) => runProjectCommand(processManager, node, 'build')),
+    vscode.commands.registerCommand('dotnetSolutionNavigator.rebuildProject', (node: TreeNode) => runProjectCommand(processManager, node, 'rebuild')),
     vscode.commands.registerCommand('dotnetSolutionNavigator.buildSolution', () => runSolutionCommand(provider, processManager, 'build')),
     vscode.commands.registerCommand('dotnetSolutionNavigator.rebuildSolution', () => runSolutionCommand(provider, processManager, 'rebuild')),
     vscode.commands.registerCommand('dotnetSolutionNavigator.cleanSolution', () => runSolutionCommand(provider, processManager, 'clean')),
@@ -196,6 +205,25 @@ async function selectOpenedFile(
   }
 
   await treeView.reveal(node, { select: true, focus: false, expand: true });
+}
+
+async function openSolutionFile(provider: DotnetTreeProvider): Promise<void> {
+  const solutionPath = provider.getSolution()?.path;
+  if (!solutionPath) {
+    vscode.window.showInformationMessage('No .sln or .slnx file is active.');
+    return;
+  }
+
+  await vscode.window.showTextDocument(vscode.Uri.file(solutionPath), { preview: false });
+}
+
+function openSolutionTerminal(provider: DotnetTreeProvider): void {
+  const solution = provider.getSolution();
+  if (!solution) {
+    return;
+  }
+
+  openTerminalAt(solution.path ? path.dirname(solution.path) : solution.rootPath);
 }
 
 async function openSolutionTreeFind(): Promise<void> {
@@ -344,7 +372,7 @@ function sameTreeResource(a: TreeNode, b: TreeNode): boolean {
   return a.kind === b.kind && a.label === b.label && a.id === b.id && a.configId === b.configId;
 }
 
-async function runProjectCommand(processManager: ProcessManager, node: TreeNode, verb: 'build' | 'test' | 'clean'): Promise<void> {
+async function runProjectCommand(processManager: ProcessManager, node: TreeNode, verb: 'build' | 'rebuild' | 'test' | 'clean'): Promise<void> {
   const project = projectFromNode(node);
   if (!project) {
     return;

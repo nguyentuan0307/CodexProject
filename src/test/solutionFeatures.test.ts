@@ -25,3 +25,40 @@ test('contributes a welcome view with recovery actions', () => {
   assert.match(welcome.contents, /dotnetSolutionNavigator\.openWorkspaceFolder/);
   assert.match(welcome.contents, /dotnetSolutionNavigator\.selectSolution/);
 });
+
+test('separates solution and run configuration views', () => {
+  const views = manifest.contributes.views.dotnetSolutionNavigatorContainer;
+  assert.deepEqual(
+    views.map((view: { id: string }) => view.id),
+    ['dotnetSolutionNavigator', 'dotnetSolutionNavigator.runConfigurations']
+  );
+
+  const titleItems = manifest.contributes.menus['view/title'];
+  const solutionNavigation = titleItems
+    .filter((item: { when: string; group: string }) => item.when.includes('view == dotnetSolutionNavigator') && !item.when.includes('.runConfigurations') && item.group.startsWith('navigation'))
+    .map((item: { command: string }) => item.command);
+  assert.ok(!solutionNavigation.includes('dotnetSolutionNavigator.runActiveConfig'));
+  assert.ok(!solutionNavigation.includes('dotnetSolutionNavigator.debugActiveConfig'));
+
+  const runViewCommands = titleItems
+    .filter((item: { when: string }) => item.when.includes('dotnetSolutionNavigator.runConfigurations'))
+    .map((item: { command: string }) => item.command);
+  assert.ok(runViewCommands.includes('dotnetSolutionNavigator.addRunConfig'));
+  assert.ok(runViewCommands.includes('dotnetSolutionNavigator.runActiveConfig'));
+  assert.ok(runViewCommands.includes('dotnetSolutionNavigator.debugActiveConfig'));
+});
+
+test('uses automatic icons and project hover actions', () => {
+  const iconMode = manifest.contributes.configuration.properties['dotnetSolutionNavigator.iconMode'];
+  assert.equal(iconMode.default, 'auto');
+  assert.ok(iconMode.enum.includes('auto'));
+
+  const inlineCommands = manifest.contributes.menus['view/item/context']
+    .filter((item: { group: string; when: string }) => item.group.startsWith('inline') && item.when.includes('viewItem =~ /project/'))
+    .map((item: { command: string }) => item.command);
+  assert.deepEqual(inlineCommands, [
+    'dotnetSolutionNavigator.runProject',
+    'dotnetSolutionNavigator.debugProject',
+    'dotnetSolutionNavigator.stopProject'
+  ]);
+});

@@ -118,11 +118,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     if (!node) {
-      return [this.runConfigsNode(), this.solutionNode(this.solution)];
-    }
-
-    if (node.kind === 'runConfigs') {
-      return this.runConfigNodes();
+      return [this.solutionNode(this.solution)];
     }
 
     if (node.kind === 'solution') {
@@ -256,7 +252,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       case 'message':
         return undefined;
       case 'runConfig':
-        return this.runConfigsNode();
+        return undefined;
       case 'project':
         return node.project ? this.parentForProject(node.project) : undefined;
       case 'folder':
@@ -274,11 +270,10 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private solutionNode(solution: SolutionModel): TreeNode {
     const solutionName = solution.path ? path.basename(solution.path, path.extname(solution.path)) : solution.name;
-    const projectWord = solution.projects.length === 1 ? 'project' : 'projects';
 
     return {
       kind: 'solution',
-      label: `${solutionName} - ${solution.projects.length} ${projectWord}`,
+      label: solutionName,
       resourcePath: solution.path,
       collapsibleState: vscode.TreeItemCollapsibleState.Expanded
     };
@@ -307,15 +302,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     };
   }
 
-  private runConfigsNode(): TreeNode {
-    return {
-      kind: 'runConfigs',
-      label: 'Run Configurations',
-      collapsibleState: vscode.TreeItemCollapsibleState.Expanded
-    };
-  }
-
-  private runConfigNodes(): TreeNode[] {
+  getRunConfigNodes(): TreeNode[] {
     if (!this.solution) {
       return [];
     }
@@ -661,10 +648,17 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private descriptionFor(node: TreeNode): string | undefined {
+    if (node.kind === 'solution' && this.solution) {
+      const projectWord = this.solution.projects.length === 1 ? 'project' : 'projects';
+      return `${this.solution.projects.length} ${projectWord}`;
+    }
+
     if (node.kind === 'project' && node.project) {
       const startup = node.project.path === this.startupProjectPath ? 'startup' : undefined;
-      const frameworks = node.project.targetFrameworks.join(', ');
-      return [projectKindLabel(node.project), frameworks, startup].filter(Boolean).join('  ');
+      const phase = this.projectStateProvider?.(node.project);
+      return [frameworkSummary(node.project.targetFrameworks), startup, phase ? phaseLabel(phase) : undefined]
+        .filter(Boolean)
+        .join(' · ');
     }
 
     if (node.kind === 'runConfig') {
@@ -683,8 +677,19 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private tooltipFor(node: TreeNode): string | undefined {
+    if (node.kind === 'solution' && this.solution) {
+      return [
+        this.solution.path ? path.basename(this.solution.path) : this.solution.name,
+        `${this.solution.projects.length} project${this.solution.projects.length === 1 ? '' : 's'}`,
+        this.solution.path ?? this.solution.rootPath
+      ].join('\n');
+    }
+
     if (node.kind === 'project' && node.project) {
-      return node.project.relativePath;
+      const frameworks = node.project.targetFrameworks.length > 0
+        ? node.project.targetFrameworks.join(', ')
+        : 'No target framework detected';
+      return [node.project.relativePath, `${projectKindLabel(node.project)} · ${frameworks}`].join('\n');
     }
 
     return node.resourcePath;
@@ -693,7 +698,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private iconFor(node: TreeNode): vscode.ThemeIcon | vscode.Uri | undefined {
     const iconMode = vscode.workspace
       .getConfiguration('dotnetSolutionNavigator')
-      .get<string>('iconMode', 'rider');
+      .get<string>('iconMode', 'auto');
 
     if (iconMode === 'theme' && (node.kind === 'folder' || node.kind === 'file')) {
       return undefined;
@@ -707,7 +712,7 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       case 'runConfig':
         return this.runConfigIcon(node, iconMode);
       case 'project':
-        return node.project ? this.projectIconFor(node.project, iconMode) : undefined;
+        return node.project ? this.projectIconFor(node, iconMode) : undefined;
       case 'dependencies':
         return new vscode.ThemeIcon('references');
       case 'projectReferences':
@@ -757,8 +762,17 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return new vscode.ThemeIcon(config?.kind === 'compound' ? 'layers' : 'play-circle');
   }
 
-  private projectIconFor(project: ProjectModel, iconMode: string): vscode.ThemeIcon | vscode.Uri {
-    if (iconMode !== 'rider') {
+  private projectIconFor(node: TreeNode, iconMode: string): vscode.ThemeIcon | vscode.Uri {
+    const project = node.project!;
+    const phase = this.projectStateProvider?.(project);
+    if (phase === 'queued' || phase === 'building' || phase === 'starting' || phase === 'stopping') {
+      return new vscode.ThemeIcon('sync~spin');
+    }
+    if (phase === 'running') {
+      return new vscode.ThemeIcon('debug-alt');
+    }
+
+    if (iconMode === 'theme' || iconMode === 'minimal') {
       return new vscode.ThemeIcon(projectThemeIcon(project));
     }
 
@@ -775,7 +789,12 @@ export class DotnetTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return new vscode.ThemeIcon('folder');
     }
 
-    return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', folderIconFileName(node.label))));
+    const fileName = folderIconFileName(node.label);
+    if (iconMode === 'auto' && fileName === 'folder-default.svg') {
+      return undefined;
+    }
+
+    return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', fileName)));
   }
 
   private nodeId(node: TreeNode): string | undefined {
@@ -894,6 +913,14 @@ function projectKindLabel(project: ProjectModel): string {
     default:
       return 'Project';
   }
+}
+
+function frameworkSummary(frameworks: readonly string[]): string | undefined {
+  if (frameworks.length === 0) {
+    return undefined;
+  }
+
+  return frameworks.length === 1 ? frameworks[0] : `${frameworks[0]} +${frameworks.length - 1}`;
 }
 
 function projectIconFileName(project: ProjectModel): string {

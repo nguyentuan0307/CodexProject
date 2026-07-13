@@ -149,4 +149,19 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /data-file-folder/);
   assert.match(source, /collapseFiles/);
   assert.match(source, /expandFiles/);
+  assert.match(source, /function fileStatus\(/);
+  assert.match(source, /status-conflict/);
+  assert.match(source, /file-add/);
+  assert.match(source, /file-del/);
+  assert.match(source, /gitDecoration-addedResourceForeground/);
+  assert.match(source, /gitDecoration-deletedResourceForeground/);
+  assert.match(source, /id="rightSplit"/);
+  assert.match(source, /gitLog\.detailHeight/);
+});
+
+test('keeps embedded Git Log webview JavaScript syntactically valid', () => {
+  const source = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
+  const script = /<script nonce="\$\{nonce\}">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
 });

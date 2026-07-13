@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { runGit } from './gitCli';
-import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitInlineDiff, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo } from './gitPanelModels';
+import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitInlineDiff, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo, GitWorktreeInfo } from './gitPanelModels';
 import { logPrettyFormat, parseLog, parseNameStatusZ, parseNumstatZ, parseWorkingTreeStatus } from './gitPanelParsers';
 import { computeGraphLayout } from './gitGraphLayout';
 import { BoundedCache } from './boundedCache';
@@ -30,10 +30,11 @@ export class GitRepositoryService {
   }
 
   async snapshot(root: string, token?: vscode.CancellationToken): Promise<GitRepositorySnapshot> {
-    const [status, refs, stashes] = await Promise.all([
+    const [status, refs, stashes, worktrees] = await Promise.all([
       this.git(root, ['status', '--porcelain=v2', '--branch', '-z'], token),
       this.git(root, ['for-each-ref', '--format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)', 'refs/heads', 'refs/remotes', 'refs/tags'], token),
-      this.git(root, ['stash', 'list', '--format=%gd%x00%H%x00%gs%x00%ct%x00'], token)
+      this.git(root, ['stash', 'list', '--format=%gd%x00%H%x00%gs%x00%ct%x00'], token),
+      this.git(root, ['worktree', 'list', '--porcelain'], token)
     ]);
     const statusFields = status.stdout.split('\0');
     const branchHead = readStatusHeader(statusFields, '# branch.head ') || 'HEAD';
@@ -52,7 +53,8 @@ export class GitRepositoryService {
       lastFetchedAt: this.lastFetched.get(root),
       operation: await detectOperation(root),
       refs: parseRefs(refs.stdout, branchHead),
-      stashes: parseStashes(stashes.stdout)
+      stashes: parseStashes(stashes.stdout),
+      worktrees: parseWorktrees(worktrees.stdout, root)
     };
   }
 
@@ -135,6 +137,12 @@ export class GitRepositoryService {
       if (result.exitCode === 0) published.push(hash);
     }
     return published;
+  }
+
+  async worktreeChangedCount(worktreePath: string): Promise<number> {
+    const result = await runGit(worktreePath, ['status', '--porcelain', '-z']);
+    if (result.exitCode !== 0) throw new GitCommandError(['status', '--porcelain'], result.stderr, result.exitCode);
+    return result.stdout.split('\0').filter(Boolean).length;
   }
 
   markFetched(root: string): void { this.lastFetched.set(root, Date.now()); }
@@ -240,6 +248,25 @@ function parseStashes(output: string): GitStashInfo[] {
     if (ref) stashes.push({ ref, hash, message, timestamp: Number(timestamp) || 0 });
   }
   return stashes;
+}
+
+export function parseWorktrees(output: string, currentRoot: string): GitWorktreeInfo[] {
+  return output.trim().split(/\r?\n\r?\n/).filter(Boolean).map(record => {
+    const values = new Map<string, string>();
+    for (const line of record.split(/\r?\n/)) {
+      const space = line.indexOf(' ');
+      values.set(space < 0 ? line : line.slice(0, space), space < 0 ? '' : line.slice(space + 1));
+    }
+    const worktreePath = values.get('worktree') ?? '';
+    return {
+      path: worktreePath,
+      head: values.get('HEAD') ?? '',
+      branch: values.get('branch')?.replace(/^refs\/heads\//, ''),
+      detached: values.has('detached'), bare: values.has('bare'),
+      locked: values.get('locked') || undefined, prunable: values.get('prunable') || undefined,
+      current: path.resolve(worktreePath) === path.resolve(currentRoot)
+    };
+  });
 }
 
 function buildFilterArgs(filter: GitLogFilter): string[] {

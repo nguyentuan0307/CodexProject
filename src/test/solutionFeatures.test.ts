@@ -187,6 +187,22 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /state\.selectedRef=item\.dataset\.ref;renderBranches\(\)/);
 });
 
+test('renders Git Log lane focus, action feedback, and worktree support', () => {
+  const provider = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
+  const service = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitRepositoryService.ts'), 'utf8');
+  const mutations = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitMutationRunner.ts'), 'utf8');
+  assert.match(provider, /function selectedFirstParentPath\(\)/);
+  assert.match(provider, /showActionFeedback\(m\.action,m\.durationMs\)/);
+  assert.match(provider, /data-kind="'\+\(x\.current\?'worktreeCurrent':'worktree'\)/);
+  assert.match(provider, /path:item\.dataset\.path/);
+  assert.doesNotMatch(provider, /e\.key==='ArrowDown'\|\|e\.key==='ArrowUp'/);
+  assert.match(service, /worktree', 'list', '--porcelain'/);
+  assert.match(service, /export function parseWorktrees/);
+  assert.match(mutations, /case 'worktreeAdd'/);
+  assert.match(mutations, /case 'worktreeRemove'/);
+  assert.match(mutations, /case 'worktreePrune'/);
+});
+
 test('renders advanced Git Log UX and interactive rebase preview', () => {
   const source = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
   assert.match(source, /data-empty-action="refresh"/);

@@ -81,6 +81,9 @@ export class GitMutationRunner {
       case 'deleteRemote': return ['push', String(request.options?.remote), '--delete', ref];
       case 'merge': return ['merge', ...(request.options?.noFf ? ['--no-ff'] : []), ...(request.options?.squash ? ['--squash'] : []), ref];
       case 'rebase': return ['rebase', ref];
+      case 'worktreeAdd': return ['worktree', 'add', ...(request.options?.newBranch ? ['-b', String(request.options.newBranch)] : []), String(request.path), ref];
+      case 'worktreeRemove': return ['worktree', 'remove', ...(request.options?.force ? ['--force'] : []), String(request.path)];
+      case 'worktreePrune': return ['worktree', 'prune'];
       case 'interactiveRebase': {
         const plan = JSON.parse(String(request.options?.plan ?? '[]')) as GitRebasePlanItem[];
         await runInteractiveRebase(root, String(request.options?.base), plan);
@@ -167,7 +170,7 @@ export class GitMutationRunner {
   }
 }
 
-const destructiveActions = new Set(['deleteRemote', 'deleteBranch', 'deleteTag', 'stashDrop', 'rollbackFile', 'getFile', 'undoCommit', 'reset', 'dropCommit', 'abort']);
+const destructiveActions = new Set(['deleteRemote', 'deleteBranch', 'deleteTag', 'stashDrop', 'rollbackFile', 'getFile', 'undoCommit', 'reset', 'dropCommit', 'abort', 'worktreeRemove']);
 const historyRewriteActions = new Set(['undoCommit', 'reset', 'dropCommit', 'interactiveRebase']);
 
 async function confirmDestructive(root: string, request: GitMutationRequest, service: GitRepositoryService): Promise<boolean> {
@@ -181,7 +184,8 @@ async function confirmDestructive(root: string, request: GitMutationRequest, ser
     ,dropCommit: `Commit ${request.ref} will be removed by rewriting branch history. A force push may be required.`,
     deleteBranch: `Local branch ${request.ref} will be deleted${request.options?.force ? ' even if it is not merged' : ''}.`,
     deleteTag: `Tag ${request.ref} will be deleted${request.options?.remote ? ' locally and from '+request.options.remote : ' locally'}.`,
-    abort: `The current ${String(request.options?.operation ?? 'Git operation').toLowerCase()} will be aborted and its in-progress changes discarded.`
+    abort: `The current ${String(request.options?.operation ?? 'Git operation').toLowerCase()} will be aborted and its in-progress changes discarded.`,
+    worktreeRemove: `Worktree ${request.path} will be removed${request.options?.force ? ' with uncommitted changes' : ''}.`
   };
   const canBackup = ['reset', 'dropCommit', 'undoCommit'].includes(request.action);
   const choice = await vscode.window.showWarningMessage(

@@ -18,6 +18,17 @@ export interface GitStashInfo {
   readonly timestamp: number;
 }
 
+export interface GitWorktreeInfo {
+  readonly path: string;
+  readonly head: string;
+  readonly branch?: string;
+  readonly detached: boolean;
+  readonly bare: boolean;
+  readonly locked?: string;
+  readonly prunable?: string;
+  readonly current: boolean;
+}
+
 export interface GitFileChange {
   readonly status: string;
   readonly path: string;
@@ -82,6 +93,7 @@ export interface GitRepositorySnapshot {
   readonly operation?: GitOperationState;
   readonly refs: GitRefInfo[];
   readonly stashes: GitStashInfo[];
+  readonly worktrees: GitWorktreeInfo[];
 }
 
 export type GitOperationState = 'MERGING' | 'REBASING' | 'CHERRY-PICKING' | 'REVERTING';

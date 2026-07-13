@@ -150,6 +150,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.affectsConfiguration('dotnetSolutionNavigator')) {
         provider.refresh();
       }
+      if (event.affectsConfiguration('dotnetSolutionNavigator.gitLog')) {
+        gitLogProvider.configureAutoFetch();
+      }
     }),
     vscode.window.onDidChangeActiveTextEditor(() => {
       const follow = vscode.workspace

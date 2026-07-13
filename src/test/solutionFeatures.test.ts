@@ -112,3 +112,11 @@ test('contributes Git Log as a bottom panel webview', () => {
   assert.ok(views.some((item: { id: string; type: string }) =>
     item.id === 'dotnetSolutionNavigator.gitLog' && item.type === 'webview'));
 });
+
+test('contributes Git Log safety and auto-fetch settings', () => {
+  const properties = manifest.contributes.configuration.properties;
+  assert.deepEqual(properties['dotnetSolutionNavigator.gitLog.protectedBranches'].default,
+    ['main', 'master', 'develop', 'release/*']);
+  assert.equal(properties['dotnetSolutionNavigator.gitLog.autoFetch'].default, true);
+  assert.equal(properties['dotnetSolutionNavigator.gitLog.autoFetchMinutes'].default, 20);
+});

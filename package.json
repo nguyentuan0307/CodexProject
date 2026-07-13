@@ -770,6 +770,23 @@
           "minimum": 1,
           "description": "Maximum commits returned by Show History for Selection."
         },
+        "dotnetSolutionNavigator.gitLog.protectedBranches": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["main", "master", "develop", "release/*"],
+          "description": "Branch name patterns on which history-rewriting Git Log actions are blocked."
+        },
+        "dotnetSolutionNavigator.gitLog.autoFetch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fetch repositories while the Git Log view is active."
+        },
+        "dotnetSolutionNavigator.gitLog.autoFetchMinutes": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Interval in minutes between automatic fetch operations."
+        },
         "dotnetSolutionNavigator.format.normalizeIndentWhitespace": {
           "type": "boolean",
           "default": true,

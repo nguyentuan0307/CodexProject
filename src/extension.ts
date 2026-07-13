@@ -11,6 +11,9 @@ import { findRepoRoot, runGit, toGitRelativePath } from './git/gitCli';
 import { GitOperationCancelledError, LineHistoryQuery, getLineHistory, lineHistoryLabel } from './git/lineHistory';
 import { LineHistoryPanel } from './git/lineHistoryPanel';
 import { mapWorktreeRangeToHead } from './git/lineMapping';
+import { GitLogViewProvider } from './git/gitLogViewProvider';
+import { GitRepositoryService } from './git/gitRepositoryService';
+import { GitRevisionProvider, gitRevisionScheme } from './git/gitRevisionProvider';
 import { ProjectModel, RunConfig, SolutionModel, TreeNode } from './models';
 import { isRunnableProject } from './projectCapabilities';
 import { ProcessManager } from './processManager';
@@ -24,6 +27,8 @@ let activeProcessManager: ProcessManager | undefined;
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new DotnetTreeProvider(context);
   const branchCompareProvider = new BranchCompareDocumentProvider();
+  const gitRepositoryService = new GitRepositoryService();
+  const gitLogProvider = new GitLogViewProvider(gitRepositoryService, context.extensionUri);
   const processManager = new ProcessManager();
   provider.setRunStateProvider(
     project => processManager.getProjectPhase(project),
@@ -67,6 +72,9 @@ export function activate(context: vscode.ExtensionContext): void {
     treeView,
     runConfigTreeView,
     vscode.workspace.registerTextDocumentContentProvider('dotnet-navigator-compare', branchCompareProvider),
+    vscode.workspace.registerTextDocumentContentProvider(gitRevisionScheme, new GitRevisionProvider(gitRepositoryService)),
+    vscode.window.registerWebviewViewProvider(GitLogViewProvider.viewId, gitLogProvider, { webviewOptions: { retainContextWhenHidden: true } }),
+    gitLogProvider,
     processManager,
     ...statusItems,
     provider.onDidChangeTreeData(refreshStatusBar),

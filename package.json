@@ -38,6 +38,13 @@
           "title": ".NET",
           "icon": "media/dotnet.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "dotnetSolutionNavigatorGitPanel",
+          "title": "Git Log",
+          "icon": "$(git-commit)"
+        }
       ]
     },
     "views": {
@@ -49,6 +56,13 @@
         {
           "id": "dotnetSolutionNavigator.runConfigurations",
           "name": "Run Configurations"
+        }
+      ],
+      "dotnetSolutionNavigatorGitPanel": [
+        {
+          "type": "webview",
+          "id": "dotnetSolutionNavigator.gitLog",
+          "name": "Git Log"
         }
       ]
     },

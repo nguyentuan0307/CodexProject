@@ -104,3 +104,11 @@ test('groups editor git actions under a submenu while keeping format visible', (
     item.command === 'dotnetSolutionNavigator.showHistoryForSelection' && item.when?.includes('editorHasSelection')
   ));
 });
+
+test('contributes Git Log as a bottom panel webview', () => {
+  const panel = manifest.contributes.viewsContainers.panel;
+  assert.ok(panel.some((item: { id: string }) => item.id === 'dotnetSolutionNavigatorGitPanel'));
+  const views = manifest.contributes.views.dotnetSolutionNavigatorGitPanel;
+  assert.ok(views.some((item: { id: string; type: string }) =>
+    item.id === 'dotnetSolutionNavigator.gitLog' && item.type === 'webview'));
+});

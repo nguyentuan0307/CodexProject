@@ -2,6 +2,13 @@
 
 All notable changes to DotNav are documented here.
 
+## [0.3.0](https://github.com/nguyentuan0307/DotNav/compare/dotnav-v0.2.0...dotnav-v0.3.0) (2026-07-13)
+
+
+### Features
+
+* split GitNav into standalone extension ([10f0ae7](https://github.com/nguyentuan0307/DotNav/commit/10f0ae716feb6fbf4dd687548c6656577aaac4fd))
+
 ## [0.2.0](https://github.com/nguyentuan0307/DotNav/compare/v0.1.0...v0.2.0) (2026-07-13)
 
 ### Features

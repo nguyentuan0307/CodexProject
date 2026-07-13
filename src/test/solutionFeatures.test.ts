@@ -157,6 +157,11 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /gitDecoration-deletedResourceForeground/);
   assert.match(source, /id="rightSplit"/);
   assert.match(source, /gitLog\.detailHeight/);
+  assert.match(source, /class="ref-shape"/);
+  assert.doesNotMatch(source, /'⑂'/);
+  assert.match(source, /function showRecoveryToast\(/);
+  assert.match(source, /recovery\.actions/);
+  assert.match(source, /id="toastClose"/);
 });
 
 test('keeps embedded Git Log webview JavaScript syntactically valid', () => {

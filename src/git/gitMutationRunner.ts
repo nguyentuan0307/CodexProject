@@ -4,6 +4,7 @@ import { GitRepositoryService } from './gitRepositoryService';
 import { RepositoryMutationQueue } from './gitPanelCoordinator';
 import { matchingProtectedBranchPattern } from './gitBranchProtection';
 import { operationArguments } from './gitOperationFlow';
+import { runGit } from './gitCli';
 
 export class GitMutationRunner {
   private readonly queue = new RepositoryMutationQueue();
@@ -102,6 +103,14 @@ export class GitMutationRunner {
       case 'continue': return operationArguments(String(request.options?.operation), 'continue');
       case 'abort': return operationArguments(String(request.options?.operation), 'abort');
       case 'skip': return operationArguments(String(request.options?.operation), 'skip');
+      case 'commitEmptyContinue': {
+        await this.service.git(root, ['commit', '--allow-empty', '--no-edit']);
+        const continued = await runGit(root, ['cherry-pick', '--continue']);
+        if (continued.exitCode !== 0 && !/no cherry-pick|no cherry.pick/i.test(continued.stderr)) {
+          throw new Error(continued.stderr.trim() || 'Unable to continue cherry-pick after creating the empty commit.');
+        }
+        return ['status', '--short'];
+      }
       default: throw new Error(`Unsupported Git action: ${request.action}`);
     }
   }

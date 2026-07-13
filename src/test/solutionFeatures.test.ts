@@ -170,6 +170,8 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /function showRecoveryToast\(/);
   assert.match(source, /recovery\.actions/);
   assert.match(source, /id="toastClose"/);
+  assert.match(source, /m\.repositoryId!==state\.repository\.root/);
+  assert.match(source, /repositoryStatus\(state\.repository\)/);
 });
 
 test('keeps embedded Git Log webview JavaScript syntactically valid', () => {

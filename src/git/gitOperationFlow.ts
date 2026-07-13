@@ -16,3 +16,7 @@ export function canSkipOperation(operation: GitOperationState | string | undefin
   const name = String(operation ?? '').toUpperCase();
   return name.includes('REBAS') || name.includes('CHERRY');
 }
+
+export function isActionAllowedDuringOperation(action: string): boolean {
+  return ['continue', 'abort', 'skip', 'commitEmptyContinue', 'fetch'].includes(action);
+}

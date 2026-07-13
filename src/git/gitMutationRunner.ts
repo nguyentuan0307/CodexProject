@@ -3,7 +3,7 @@ import { GitMutationRequest } from './gitPanelModels';
 import { GitRepositoryService } from './gitRepositoryService';
 import { RepositoryMutationQueue } from './gitPanelCoordinator';
 import { matchingProtectedBranchPattern } from './gitBranchProtection';
-import { operationArguments } from './gitOperationFlow';
+import { isActionAllowedDuringOperation, operationArguments } from './gitOperationFlow';
 import { runGit } from './gitCli';
 
 export class GitMutationRunner {
@@ -17,6 +17,10 @@ export class GitMutationRunner {
   }
 
   private async runExclusive(root: string, request: GitMutationRequest): Promise<boolean> {
+    const operation = (await this.service.snapshot(root)).operation;
+    if (operation && !isActionAllowedDuringOperation(request.action)) {
+      throw new Error(`${request.action} is blocked while the repository is ${operation}. Continue, skip, or abort the current operation first.`);
+    }
     const protectedPattern = await this.protectedPattern(root);
     if ((historyRewriteActions.has(request.action) || request.action === 'update' && request.options?.strategy === 'reset') && protectedPattern) {
       throw new Error(`This operation is blocked because the current branch matches protected pattern "${protectedPattern}".`);

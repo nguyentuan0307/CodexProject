@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GitRequestCoordinator, RepositoryMutationQueue } from '../git/gitPanelCoordinator';
+import { CoalescedRefreshRunner, GitRequestCoordinator, RepositoryMutationQueue } from '../git/gitPanelCoordinator';
 
 test('rejects a stale response superseded on the same channel', () => {
   const coordinator = new GitRequestCoordinator();
@@ -48,4 +48,37 @@ test('allows mutations in different repositories to run concurrently', async () 
   assert.deepEqual(entered, ['a', 'b']);
   release();
   await a;
+});
+
+test('coalesces concurrent refresh requests into one queued follow-up', async () => {
+  const runner = new CoalescedRefreshRunner();
+  const events: string[] = [];
+  let release!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  let runs = 0;
+  const operation = async () => {
+    runs++;
+    events.push(`start:${runs}`);
+    if (runs === 1) await blocked;
+    events.push(`end:${runs}`);
+  };
+
+  const first = runner.run(operation);
+  const second = runner.run(operation);
+  const third = runner.run(operation);
+  assert.equal(first, second);
+  assert.equal(second, third);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(events, ['start:1']);
+  release();
+  await Promise.all([first, second, third]);
+  assert.deepEqual(events, ['start:1', 'end:1', 'start:2', 'end:2']);
+});
+
+test('refresh runner accepts another request after a failure', async () => {
+  const runner = new CoalescedRefreshRunner();
+  await assert.rejects(runner.run(async () => { throw new Error('expected'); }), /expected/);
+  let completed = false;
+  await runner.run(async () => { completed = true; });
+  assert.equal(completed, true);
 });

@@ -5,7 +5,7 @@ import { GitRepositoryService } from './gitRepositoryService';
 import { revisionUri } from './gitRevisionProvider';
 import { GitMutationRunner } from './gitMutationRunner';
 import { GitMutationRequest } from './gitPanelModels';
-import { GitReadChannel, GitRequestCoordinator, GitRequestIdentity } from './gitPanelCoordinator';
+import { CoalescedRefreshRunner, GitReadChannel, GitRequestCoordinator, GitRequestIdentity } from './gitPanelCoordinator';
 import { classifyGitError } from './gitErrorRecovery';
 import { MutationBusyTracker, runMutationLifecycle } from './gitMutationLifecycle';
 
@@ -20,6 +20,7 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
   private readonly requests = new GitRequestCoordinator();
   private readonly readCancellations = new Map<GitReadChannel, vscode.CancellationTokenSource>();
   private readonly mutationBusy = new MutationBusyTracker();
+  private readonly refreshRunner = new CoalescedRefreshRunner();
   private autoFetchTimer?: NodeJS.Timeout;
   private externalRefreshTimer?: NodeJS.Timeout;
   private gitWatcher?: vscode.FileSystemWatcher;
@@ -39,6 +40,10 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
   }
 
   async refresh(): Promise<void> {
+    return this.refreshRunner.run(() => this.refreshCore());
+  }
+
+  private async refreshCore(): Promise<void> {
     if (!this.view) return;
     const repositories = await this.service.discoverRepositories();
     if (!this.root || !repositories.includes(this.root)) this.root = repositories[0];
@@ -46,13 +51,16 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     this.cancelReads();
     this.requests.invalidate(this.root);
     const read = this.beginRead('refresh', this.root);
-    const [repository, log, uncommitted] = await Promise.all([
-      this.service.snapshot(this.root, read.source.token), this.service.log(this.root, 0, 200, {}, read.source.token), this.service.workingTreeFiles(this.root, read.source.token)
-    ]);
-    if (this.requests.isCurrent('refresh', read.identity, this.root)) {
-      this.post({ type: 'state', repositories, repository, log, uncommitted, generation: read.identity.generation, identity: read.identity });
+    try {
+      const [repository, log, uncommitted] = await Promise.all([
+        this.service.snapshot(this.root, read.source.token), this.service.log(this.root, 0, 200, {}, read.source.token), this.service.workingTreeFiles(this.root, read.source.token)
+      ]);
+      if (this.requests.isCurrent('refresh', read.identity, this.root)) {
+        this.post({ type: 'state', repositories, repository, log, uncommitted, generation: read.identity.generation, identity: read.identity });
+      }
+    } finally {
+      this.finishRead('refresh', read.source);
     }
-    this.finishRead('refresh', read.source);
   }
 
   dispose(): void {

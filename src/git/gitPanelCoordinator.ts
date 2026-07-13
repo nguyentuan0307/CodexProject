@@ -61,3 +61,23 @@ export class RepositoryMutationQueue {
     return result;
   }
 }
+
+export class CoalescedRefreshRunner {
+  private running?: Promise<void>;
+  private requested = false;
+
+  run(operation: () => Promise<void>): Promise<void> {
+    this.requested = true;
+    if (!this.running) {
+      this.running = this.drain(operation).finally(() => { this.running = undefined; });
+    }
+    return this.running;
+  }
+
+  private async drain(operation: () => Promise<void>): Promise<void> {
+    do {
+      this.requested = false;
+      await operation();
+    } while (this.requested);
+  }
+}

@@ -136,6 +136,13 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /window\.innerWidth-rect\.width/);
   assert.doesNotMatch(source, /showQuickPick\(actions/);
   assert.match(source, /const \{type,\.\.\.context\}=state\.contextPayload/);
+  assert.match(source, /function requestContext\(data\)/);
+  assert.match(source, /context\.requestId!==state\.contextRequestId/);
+  assert.match(source, /button\.disabled=true/);
+  assert.match(source, /Ignored duplicate mutation/);
+  assert.match(source, /context menu is stale because the active repository changed/i);
+  assert.match(source, /Compare with Working Tree/);
+  assert.match(source, /Show in Log/);
   assert.doesNotMatch(source, /branches'\)\.ondblclick/);
   assert.match(source, /<svg class="graph-overlay" id="graphSvg"/);
   assert.match(source, /function renderGraph\(/);

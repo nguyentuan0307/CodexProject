@@ -81,3 +81,15 @@ export class CoalescedRefreshRunner {
     } while (this.requested);
   }
 }
+
+export class InFlightOperationGuard {
+  private readonly active = new Set<string>();
+
+  tryEnter(key: string): boolean {
+    if (this.active.has(key)) return false;
+    this.active.add(key);
+    return true;
+  }
+
+  leave(key: string): void { this.active.delete(key); }
+}

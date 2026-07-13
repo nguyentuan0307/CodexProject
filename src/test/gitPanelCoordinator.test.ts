@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CoalescedRefreshRunner, GitRequestCoordinator, RepositoryMutationQueue } from '../git/gitPanelCoordinator';
+import { CoalescedRefreshRunner, GitRequestCoordinator, InFlightOperationGuard, RepositoryMutationQueue } from '../git/gitPanelCoordinator';
 
 test('rejects a stale response superseded on the same channel', () => {
   const coordinator = new GitRequestCoordinator();
@@ -81,4 +81,13 @@ test('refresh runner accepts another request after a failure', async () => {
   let completed = false;
   await runner.run(async () => { completed = true; });
   assert.equal(completed, true);
+});
+
+test('blocks only duplicate in-flight operations and releases completed keys', () => {
+  const guard = new InFlightOperationGuard();
+  assert.equal(guard.tryEnter('checkout:main'), true);
+  assert.equal(guard.tryEnter('checkout:main'), false);
+  assert.equal(guard.tryEnter('fetch'), true);
+  guard.leave('checkout:main');
+  assert.equal(guard.tryEnter('checkout:main'), true);
 });

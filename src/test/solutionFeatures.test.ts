@@ -120,3 +120,20 @@ test('contributes Git Log safety and auto-fetch settings', () => {
   assert.equal(properties['dotnetSolutionNavigator.gitLog.autoFetch'].default, true);
   assert.equal(properties['dotnetSolutionNavigator.gitLog.autoFetchMinutes'].default, 20);
 });
+
+test('renders Git Log context actions inside the webview', () => {
+  const source = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
+  assert.match(source, /class="context-menu" id="contextMenu"/);
+  assert.match(source, /showInlineContextMenu/);
+  assert.match(source, /window\.innerWidth-rect\.width/);
+  assert.doesNotMatch(source, /showQuickPick\(actions/);
+});
+
+test('renders changed files as a recursive collapsible tree', () => {
+  const source = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
+  assert.match(source, /function fileTree\(/);
+  assert.match(source, /function renderFileNode\(/);
+  assert.match(source, /data-file-folder/);
+  assert.match(source, /collapseFiles/);
+  assert.match(source, /expandFiles/);
+});

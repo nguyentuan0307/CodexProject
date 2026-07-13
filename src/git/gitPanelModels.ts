@@ -36,8 +36,12 @@ export interface GitCommitSummary {
   readonly authorEmail: string;
   readonly authorTimestamp: number;
   readonly refs: string[];
-  readonly graph: string;
+  readonly lane?: GitGraphLane;
 }
+
+export interface GitGraphLine { readonly fromColumn: number; readonly toColumn: number; readonly toCommit: string; }
+export interface GitGraphLane { readonly column: number; readonly color: number; readonly lines: GitGraphLine[]; }
+export interface GitGraphSnapshot { readonly activeLanes: Array<string | null>; readonly laneColors: Array<number | null>; readonly nextColor: number; }
 
 export interface GitCommitDetail extends GitCommitSummary {
   readonly message: string;

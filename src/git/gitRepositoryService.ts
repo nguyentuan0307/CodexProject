@@ -1,8 +1,9 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { runGit } from './gitCli';
-import { GitCommitDetail, GitCommitSummary, GitFileChange, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo } from './gitPanelModels';
+import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo } from './gitPanelModels';
 import { logPrettyFormat, parseLog, parseNameStatusZ, parseNumstatZ, parseWorkingTreeStatus } from './gitPanelParsers';
+import { computeGraphLayout } from './gitGraphLayout';
 
 export class GitCommandError extends Error {
   constructor(readonly args: string[], readonly stderr: string, readonly exitCode: number) {
@@ -11,6 +12,7 @@ export class GitCommandError extends Error {
 }
 
 export class GitRepositoryService {
+  private readonly graphSnapshots = new Map<string, GitGraphSnapshot>();
   async discoverRepositories(): Promise<string[]> {
     const roots = vscode.workspace.workspaceFolders ?? [];
     const repositories = new Set<string>();
@@ -62,10 +64,17 @@ export class GitRepositoryService {
     const shared = buildFilterArgs(effectiveFilter);
     const tail = [...revisions, ...(filter.path ? ['--', filter.path] : [])];
     const [records, count] = await Promise.all([
-      this.git(root, ['log', '--graph', `--format=${logPrettyFormat}`, '--decorate=full', `--skip=${offset}`, `--max-count=${limit}`, ...shared, ...tail]),
+      this.git(root, ['log', `--format=${logPrettyFormat}`, '--decorate=full', `--skip=${offset}`, `--max-count=${limit}`, ...shared, ...tail]),
       this.git(root, ['rev-list', '--count', ...shared, ...tail])
     ]);
-    const commits = parseLog(records.stdout);
+    const parsed = parseLog(records.stdout);
+    const graphKey = `${root}\0${JSON.stringify(effectiveFilter)}\0${revisions.join('\0')}`;
+    if (offset === 0) {
+      for (const key of [...this.graphSnapshots.keys()]) if (key.startsWith(`${graphKey}\0`)) this.graphSnapshots.delete(key);
+    }
+    const layout = computeGraphLayout(parsed, this.graphSnapshots.get(`${graphKey}\0${offset}`));
+    this.graphSnapshots.set(`${graphKey}\0${offset + parsed.length}`, layout.snapshot);
+    const commits = parsed.map(commit => ({ ...commit, lane: layout.lanes[commit.hash] }));
     const total = Number(count.stdout.trim()) || 0;
     return { commits, offset, total, hasMore: offset + commits.length < total };
   }

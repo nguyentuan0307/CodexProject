@@ -127,6 +127,11 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /showInlineContextMenu/);
   assert.match(source, /window\.innerWidth-rect\.width/);
   assert.doesNotMatch(source, /showQuickPick\(actions/);
+  assert.match(source, /const \{type,\.\.\.context\}=state\.contextPayload/);
+  assert.doesNotMatch(source, /branches'\)\.ondblclick/);
+  assert.match(source, /<svg class="graph-overlay" id="graphSvg"/);
+  assert.match(source, /function renderGraph\(/);
+  assert.doesNotMatch(source, /esc\(c\.graph/);
 });
 
 test('renders changed files as a recursive collapsible tree', () => {

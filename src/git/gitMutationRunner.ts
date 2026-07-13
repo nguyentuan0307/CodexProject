@@ -3,6 +3,7 @@ import { GitMutationRequest } from './gitPanelModels';
 import { GitRepositoryService } from './gitRepositoryService';
 import { RepositoryMutationQueue } from './gitPanelCoordinator';
 import { matchingProtectedBranchPattern } from './gitBranchProtection';
+import { operationArguments } from './gitOperationFlow';
 
 export class GitMutationRunner {
   private readonly queue = new RepositoryMutationQueue();
@@ -98,9 +99,9 @@ export class GitMutationRunner {
         await this.service.reverseFileChange(root, ref, String(request.path));
         return ['status', '--short'];
       }
-      case 'continue': return operationCommand(request.options?.operation, '--continue');
-      case 'abort': return operationCommand(request.options?.operation, '--abort');
-      case 'skip': return operationCommand(request.options?.operation, '--skip');
+      case 'continue': return operationArguments(String(request.options?.operation), 'continue');
+      case 'abort': return operationArguments(String(request.options?.operation), 'abort');
+      case 'skip': return operationArguments(String(request.options?.operation), 'skip');
       default: throw new Error(`Unsupported Git action: ${request.action}`);
     }
   }
@@ -159,14 +160,6 @@ async function confirmDestructive(request: GitMutationRequest): Promise<boolean>
     ,dropCommit: `Commit ${request.ref} will be removed by rewriting branch history. A force push may be required.`
   };
   return await vscode.window.showWarningMessage(detail[request.action], { modal: true }, 'Continue') === 'Continue';
-}
-
-function operationCommand(operation: boolean | string | undefined, flag: string): string[] {
-  const name = String(operation ?? '').toLowerCase();
-  if (name.includes('rebas')) return ['rebase', flag];
-  if (name.includes('cherry')) return ['cherry-pick', flag];
-  if (name.includes('revert')) return ['revert', flag];
-  return ['merge', flag];
 }
 
 function labelFor(action: string): string { return action.replace(/([A-Z])/g, ' $1').toLowerCase(); }

@@ -189,6 +189,10 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /e\.shiftKey&&state\.selectionAnchor/);
   assert.match(source, /\.filter\(hash=>hash&&state\.selectedHashes\.has\(hash\)\)\.reverse\(\)/);
   assert.match(source, /m\.type==='busy'/);
+  assert.match(source, /class="column-resizer" data-resize="graph"/);
+  assert.match(source, /gitLog\.columnWidths/);
+  assert.match(source, /setPointerCapture/);
+  assert.match(source, /--graph-min-width/);
   assert.match(source, /class="toast" id="toast"/);
   assert.match(source, /conflicts\.length\+' unresolved'/);
   assert.match(source, /data-conflict="skip"/);

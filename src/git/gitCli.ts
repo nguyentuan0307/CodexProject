@@ -14,7 +14,8 @@ const repoRootCache = new Map<string, string | undefined>();
 export async function runGit(
   cwd: string,
   args: string[],
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  stdin?: string
 ): Promise<GitResult> {
   return new Promise(resolve => {
     const child = spawn('git', args, { cwd, shell: false });
@@ -52,6 +53,7 @@ export async function runGit(
       finish(1);
     });
     child.on('close', code => finish(code ?? 1));
+    if (stdin !== undefined) child.stdin.end(stdin);
   });
 }
 

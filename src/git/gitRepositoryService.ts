@@ -76,7 +76,9 @@ export class GitRepositoryService {
     if (!commit) throw new Error(`Commit ${hash} was not found.`);
     const fields = meta.stdout.split('\x1f');
     const base = parent && commit.parents[parent - 1] ? commit.parents[parent - 1] : `${hash}^`;
-    const files = await this.filesBetween(root, commit.parents.length ? base : emptyTreeHash, hash);
+    const files = parent === 0 && commit.parents.length > 1
+      ? mergeFileChanges((await Promise.all(commit.parents.map(value => this.filesBetween(root, value, hash)))).flat())
+      : await this.filesBetween(root, commit.parents.length ? base : emptyTreeHash, hash);
     return {
       ...commit,
       message: fields[8]?.replace(/\x1e|\r?\n$/g, '') || commit.subject,
@@ -115,6 +117,14 @@ export class GitRepositoryService {
       .replace(/\.git$/, '');
     return /^https?:\/\/(github\.com|gitlab\.[^/]+|[^/]*gitlab[^/]*)\//i.test(normalized)
       ? `${normalized}/commit/${hash}` : undefined;
+  }
+
+  async reverseFileChange(root: string, hash: string, filePath: string): Promise<void> {
+    const commit = parseLog((await this.git(root, ['show', '-s', `--format=${logPrettyFormat}`, hash])).stdout)[0];
+    if (!commit?.parents[0]) throw new Error('A root commit file cannot be reversed with a parent patch.');
+    const patch = await this.git(root, ['diff', '--binary', commit.parents[0], hash, '--', filePath]);
+    const result = await runGit(root, ['apply', '--reverse', '--index', '-'], undefined, patch.stdout);
+    if (result.exitCode !== 0) throw new GitCommandError(['apply', '--reverse'], result.stderr, result.exitCode);
   }
 
   async workingTreeFiles(root: string): Promise<GitFileChange[]> {
@@ -185,4 +195,13 @@ async function detectOperation(root: string): Promise<GitOperationState | undefi
     try { await vscode.workspace.fs.stat(vscode.Uri.file(path.join(gitDir, name))); return state; } catch { /* absent */ }
   }
   return undefined;
+}
+
+function mergeFileChanges(files: GitFileChange[]): GitFileChange[] {
+  const merged = new Map<string, GitFileChange>();
+  for (const file of files) {
+    const current = merged.get(file.path);
+    merged.set(file.path, current ? { ...file, additions: current.additions + file.additions, deletions: current.deletions + file.deletions } : file);
+  }
+  return [...merged.values()];
 }

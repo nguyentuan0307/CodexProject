@@ -83,6 +83,10 @@ export class GitMutationRunner {
       case 'dropCommit': return ['rebase', '--onto', `${ref}^`, ref, 'HEAD'];
       case 'rollbackFile': return ['restore', '--staged', '--worktree', '--', String(request.path)];
       case 'getFile': return ['restore', '--source', ref, '--', String(request.path)];
+      case 'revertFile': {
+        await this.service.reverseFileChange(root, ref, String(request.path));
+        return ['status', '--short'];
+      }
       case 'continue': return operationCommand(request.options?.operation, '--continue');
       case 'abort': return operationCommand(request.options?.operation, '--abort');
       case 'skip': return operationCommand(request.options?.operation, '--skip');

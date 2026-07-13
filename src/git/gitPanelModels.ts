@@ -36,6 +36,7 @@ export interface GitCommitSummary {
   readonly authorEmail: string;
   readonly authorTimestamp: number;
   readonly refs: string[];
+  readonly graph: string;
 }
 
 export interface GitCommitDetail extends GitCommitSummary {

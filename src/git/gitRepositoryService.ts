@@ -62,7 +62,7 @@ export class GitRepositoryService {
     const shared = buildFilterArgs(effectiveFilter);
     const tail = [...revisions, ...(filter.path ? ['--', filter.path] : [])];
     const [records, count] = await Promise.all([
-      this.git(root, ['log', `--format=${logPrettyFormat}`, '--decorate=full', `--skip=${offset}`, `--max-count=${limit}`, ...shared, ...tail]),
+      this.git(root, ['log', '--graph', `--format=${logPrettyFormat}`, '--decorate=full', `--skip=${offset}`, `--max-count=${limit}`, ...shared, ...tail]),
       this.git(root, ['rev-list', '--count', ...shared, ...tail])
     ]);
     const commits = parseLog(records.stdout);

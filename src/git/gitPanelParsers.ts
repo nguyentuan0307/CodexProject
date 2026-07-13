@@ -6,7 +6,8 @@ const fieldSeparator = '\x1f';
 export const logPrettyFormat = `%x1e%H%x1f%h%x1f%P%x1f%s%x1f%an%x1f%ae%x1f%at%x1f%D`;
 
 export function parseLog(output: string): GitCommitSummary[] {
-  return output.split(recordSeparator).slice(1).flatMap(record => {
+  const graphPrefixes = [...output.matchAll(/^([\s|/\\.*_-]*)\x1e/gm)].map(match => match[1]);
+  return output.split(recordSeparator).slice(1).flatMap((record, index) => {
     const line = record.replace(/^\r?\n/, '').split(/\r?\n/, 1)[0];
     const fields = line.split(fieldSeparator);
     if (fields.length < 8) {
@@ -20,7 +21,8 @@ export function parseLog(output: string): GitCommitSummary[] {
       author: fields[4],
       authorEmail: fields[5],
       authorTimestamp: Number(fields[6]) || 0,
-      refs: fields[7].split(',').map(value => value.trim()).filter(Boolean)
+      refs: fields[7].split(',').map(value => value.trim()).filter(Boolean),
+      graph: graphPrefixes[index]?.trimEnd() || '*'
     }];
   });
 }

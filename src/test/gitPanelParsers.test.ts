@@ -3,11 +3,11 @@ import { test } from 'node:test';
 import { parseLog, parseNameStatusZ, parseNumstatZ, parseWorkingTreeStatus } from '../git/gitPanelParsers';
 
 test('parses delimiter-safe decorated log records and merge parents', () => {
-  const output = '\x1eabc\x1fabc1234\x1fp1 p2\x1fsubject\x1fJane\x1fjane@example.com\x1f1700000000\x1fHEAD -> refs/heads/main, tag: refs/tags/v1\n';
+  const output = '| * \x1eabc\x1fabc1234\x1fp1 p2\x1fsubject\x1fJane\x1fjane@example.com\x1f1700000000\x1fHEAD -> refs/heads/main, tag: refs/tags/v1\n';
   assert.deepEqual(parseLog(output), [{
     hash: 'abc', shortHash: 'abc1234', parents: ['p1', 'p2'], subject: 'subject', author: 'Jane',
     authorEmail: 'jane@example.com', authorTimestamp: 1700000000,
-    refs: ['HEAD -> refs/heads/main', 'tag: refs/tags/v1']
+    refs: ['HEAD -> refs/heads/main', 'tag: refs/tags/v1'], graph: '| *'
   }]);
 });
 

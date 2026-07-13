@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { addCodeItem, addExistingItem, addFile, addFolder } from './addCommands';
 import { buildConfig, pickProfile, runConfig, startTarget } from './debugRunner';
 import { SolutionOperation, openTerminalAt, runDotnetForProject, runDotnetForProjects, runDotnetForSolution } from './dotnetCli';
-import { projectsUnderFolder } from './folderBuild';
+import { projectsUnderFolder, projectsUnderSolutionFolder } from './folderBuild';
 import { ExplorerInteractionController, isMovableNode } from './explorerInteraction';
 import { copyFullPath, copyRelativePath, deleteItem, moveItem, renameItem, revealInFileExplorer } from './fileCommands';
 import { formatSelection } from './format/formatSelection';
@@ -401,19 +401,31 @@ async function runProjectCommand(processManager: ProcessManager, node: TreeNode,
 }
 
 async function buildFolderProjects(provider: DotnetTreeProvider, processManager: ProcessManager, node: TreeNode): Promise<void> {
-  if (node.kind !== 'folder' || !node.resourcePath) return;
+  if (node.kind !== 'folder') {
+    vscode.window.showInformationMessage('Select a folder in Solution Navigator before building folder projects.');
+    return;
+  }
   if (!provider.getSolution()) await provider.refresh();
   const solution = provider.getSolution();
   if (!solution) {
     vscode.window.showInformationMessage('Open a .NET workspace before building folder projects.');
     return;
   }
-  const projects = projectsUnderFolder(solution, node.resourcePath);
-  if (!projects.length) {
-    vscode.window.showInformationMessage(`No .csproj files were found under ${node.label}.`);
+  const logicalPath = node.id?.startsWith('folder:')
+    ? node.id.slice('folder:'.length).split('/').filter(Boolean)
+    : undefined;
+  if (!logicalPath && !node.resourcePath) {
+    vscode.window.showInformationMessage(`Unable to resolve folder ${node.label}. Refresh Solution Navigator and try again.`);
     return;
   }
-  await runDotnetForProjects(projects, node.resourcePath, processManager);
+  const projects = logicalPath
+    ? projectsUnderSolutionFolder(solution, logicalPath)
+    : projectsUnderFolder(solution, node.resourcePath!);
+  if (!projects.length) {
+    vscode.window.showInformationMessage(`No projects were found under ${node.label}.`);
+    return;
+  }
+  await runDotnetForProjects(projects, node.resourcePath ?? solution.rootPath, processManager);
 }
 
 async function runSolutionCommand(

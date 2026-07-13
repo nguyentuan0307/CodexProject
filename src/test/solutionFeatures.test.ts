@@ -24,7 +24,8 @@ test('contributes recursive folder project build action', () => {
   assert.ok(commandIds.has('dotnetSolutionNavigator.buildFolderProjects'));
   assert.ok(manifest.activationEvents.includes('onCommand:dotnetSolutionNavigator.buildFolderProjects'));
   assert.ok(manifest.contributes.menus['view/item/context'].some((item: { command: string; when: string }) =>
-    item.command === 'dotnetSolutionNavigator.buildFolderProjects' && item.when.includes('viewItem =~ /folder/')));
+    item.command === 'dotnetSolutionNavigator.buildFolderProjects'
+      && item.when.includes('viewItem =~ /folder|solutionFolder/')));
 });
 
 test('contributes a welcome view with recovery actions', () => {

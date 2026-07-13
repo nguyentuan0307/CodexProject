@@ -1,13 +1,13 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { projectsUnderFolder, sortProjectsByReferences } from '../folderBuild';
+import { projectsUnderFolder, projectsUnderSolutionFolder, sortProjectsByReferences } from '../folderBuild';
 import { ProjectModel, SolutionModel } from '../models';
 
-function project(name: string, projectPath: string, references: string[] = []): ProjectModel {
+function project(name: string, projectPath: string, references: string[] = [], solutionFolder?: string[]): ProjectModel {
   return {
     name, path: projectPath, directory: projectPath.replace(/\/[^/]+$/, ''), relativePath: projectPath,
     kind: 'library', targetFrameworks: [], launchProfiles: [], packageReferences: [],
-    projectReferences: references.map(reference => ({ name: reference, path: reference }))
+    projectReferences: references.map(reference => ({ name: reference, path: reference })), solutionFolder
   };
 }
 
@@ -18,6 +18,18 @@ test('selects every project recursively under a folder', () => {
     ]
   };
   assert.deepEqual(projectsUnderFolder(solution, '/repo/src').map(item => item.name), ['A', 'B']);
+});
+
+test('selects projects recursively from a logical solution folder without requiring a disk folder', () => {
+  const solution: SolutionModel = {
+    name: 'test', rootPath: '/repo', projects: [
+      project('A', '/elsewhere/A.csproj', [], ['Services']),
+      project('B', '/repo/src/B.csproj', [], ['Services', 'Internal']),
+      project('C', '/repo/tests/C.csproj', [], ['Tests'])
+    ]
+  };
+  assert.deepEqual(projectsUnderSolutionFolder(solution, ['services']).map(item => item.name), ['A', 'B']);
+  assert.deepEqual(projectsUnderSolutionFolder(solution, ['Services', 'Internal']).map(item => item.name), ['B']);
 });
 
 test('orders folder projects dependency-first and tolerates cycles', () => {

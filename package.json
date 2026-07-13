@@ -566,7 +566,7 @@
         },
         {
           "command": "dotnetSolutionNavigator.buildFolderProjects",
-          "when": "view == dotnetSolutionNavigator && viewItem =~ /folder/",
+          "when": "view == dotnetSolutionNavigator && viewItem =~ /folder|solutionFolder/",
           "group": "2_build@1"
         },
         {

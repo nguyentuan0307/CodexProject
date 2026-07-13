@@ -7,6 +7,17 @@ export function projectsUnderFolder(solution: SolutionModel, folderPath: string)
   return sortProjectsByReferences(projects);
 }
 
+export function projectsUnderSolutionFolder(solution: SolutionModel, logicalPath: string[]): ProjectModel[] {
+  const prefix = logicalPath.map(normalizeLogicalPart);
+  const projects = solution.projects.filter(project => {
+    const candidate = project.solutionFolder?.map(normalizeLogicalPart);
+    return candidate !== undefined
+      && candidate.length >= prefix.length
+      && prefix.every((part, index) => candidate[index] === part);
+  });
+  return sortProjectsByReferences(projects);
+}
+
 export function sortProjectsByReferences(projects: ProjectModel[]): ProjectModel[] {
   const byPath = new Map(projects.map(project => [normalize(project.path), project]));
   const visiting = new Set<string>();
@@ -36,3 +47,4 @@ function isPathInside(folder: string, candidate: string): boolean {
 }
 
 function normalize(value: string): string { return path.resolve(value).toLowerCase(); }
+function normalizeLogicalPart(value: string): string { return value.trim().toLocaleLowerCase(); }

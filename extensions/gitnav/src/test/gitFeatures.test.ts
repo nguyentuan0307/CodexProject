@@ -183,6 +183,8 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /Show in Log/);
   assert.doesNotMatch(source, /branches'\)\.ondblclick/);
   assert.match(source, /<svg class="graph-overlay" id="graphSvg"/);
+  assert.match(source, /class="graph-clip" id="graphClip"/);
+  assert.match(source, /\.graph-clip\{[^}]*overflow:hidden/);
   assert.match(source, /function renderGraph\(/);
   assert.doesNotMatch(source, /esc\(c\.graph/);
   assert.match(source, /requestAnimationFrame/);
@@ -193,6 +195,9 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /gitLog\.columnWidths/);
   assert.match(source, /id="toggleColumns"/);
   assert.match(source, /gitLog\.visibleColumns/);
+  assert.match(source, /function positionColumnMenu\(\)/);
+  assert.match(source, /function closeColumnMenu\(\)/);
+  assert.match(source, /getBoundingClientRect\(\)/);
   assert.match(source, /Keep at least one column visible/);
   assert.match(source, /setPointerCapture/);
   assert.match(source, /Math\.max\(28/);

@@ -269,7 +269,9 @@ test('renders advanced Git Log UX and interactive rebase preview', () => {
   assert.doesNotMatch(source, /function renderHistoryMap\(/);
   assert.match(source, /function renderInlineDiff\(/);
   assert.match(source, /Interactive Rebase Preview/);
-  assert.match(source, /Allow Published Rebase/);
+  assert.match(source, /completing this change may require a force-with-lease push/);
+  assert.doesNotMatch(source, /Delete local branch.*showWarningMessage/);
+  assert.doesNotMatch(source, /Allow Published Rebase/);
   assert.match(source, /Create Backup & Rebase/);
   assert.doesNotMatch(source, /<span id="status">/);
   assert.match(source, /class="quick-actions"/);

@@ -1,4 +1,4 @@
-export function matchingProtectedBranchPattern(branch: string, patterns: string[]): string | undefined {
+export function matchingProtectedBranchPattern(branch: string, patterns: readonly string[]): string | undefined {
   return patterns.find(pattern => new RegExp(`^${pattern.split('*').map(escapeRegex).join('.*')}$`).test(branch));
 }
 

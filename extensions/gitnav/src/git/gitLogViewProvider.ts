@@ -9,7 +9,7 @@ import { CoalescedRefreshRunner, GitReadChannel, GitRequestCoordinator, GitReque
 import { classifyGitError } from './gitErrorRecovery';
 import { MutationBusyTracker, runMutationLifecycle } from './gitMutationLifecycle';
 
-interface WebviewMessage { type: string; root?: string; hash?: string; hashes?: string[]; path?: string; ref?: string; action?: string; kind?: string; current?: boolean; operation?: string; parent?: number; offset?: number; x?: number; y?: number; requestId?: number; generation?: number; filter?: GitLogFilter; plan?: GitRebasePlanItem[]; allowPublished?: boolean; }
+interface WebviewMessage { type: string; root?: string; hash?: string; hashes?: string[]; path?: string; ref?: string; action?: string; kind?: string; current?: boolean; operation?: string; parent?: number; offset?: number; x?: number; y?: number; requestId?: number; generation?: number; filter?: GitLogFilter; plan?: GitRebasePlanItem[]; }
 
 export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewId = 'gitnav.gitLog';
@@ -150,7 +150,7 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
       }
       if (message.type === 'copyText' && message.ref !== undefined) return await vscode.env.clipboard.writeText(message.ref);
       if (message.type === 'interactiveRebase' && message.plan) {
-        const request = await this.prepareInteractiveRebase(message.plan, message.allowPublished === true);
+        const request = await this.prepareInteractiveRebase(message.plan);
         if (request) await this.runMutation(request, this.root);
         return;
       }
@@ -376,10 +376,7 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     if (action === 'worktreeRemove' && message.path) {
       const changed = await this.service.worktreeChangedCount(message.path);
       if (!changed) return { action, path: message.path };
-      const choice = await vscode.window.showWarningMessage(
-        `${path.basename(message.path)} has ${changed} uncommitted file(s). Force removal permanently discards those changes.`,
-        { modal: true }, 'Force Remove');
-      return choice === 'Force Remove' ? { action, path: message.path, options: { force: true } } : undefined;
+      return { action, path: message.path, options: { force: true, changedCount: String(changed) } };
     }
     if (action === 'updateBranchFromOrigin') {
       if (!message.ref) return undefined;
@@ -411,12 +408,6 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
         { label: 'Reset to Remote Branch', description: 'Discards local commits and changes', value: 'reset' }
       ], { title: 'Update Project Strategy' });
       if (!strategy) return undefined;
-      if (strategy.value === 'reset') {
-        const confirmed = await vscode.window.showWarningMessage(
-          'Reset to Remote Branch permanently discards local commits and working tree changes.',
-          { modal: true }, 'Reset to Remote Branch');
-        if (!confirmed) return undefined;
-      }
       return { action, options: { strategy: strategy.value } };
     }
     if (action === 'push') {
@@ -442,8 +433,11 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
       return parts.length > 1 ? { action, ref: parts.slice(1).join('/'), options: { remote: parts[0] } } : undefined;
     }
     if (action === 'deleteBranch') {
-      const choice = await vscode.window.showWarningMessage(`Delete local branch ${message.ref}?`, { modal: true }, 'Delete', 'Force Delete');
-      return choice ? { action, ref: message.ref, options: { force: choice === 'Force Delete' } } : undefined;
+      const mode = await vscode.window.showQuickPick([
+        { label: 'Delete', force: false, description: 'Only if fully merged' },
+        { label: 'Force Delete', force: true, description: 'Delete even if not merged' }
+      ], { title: `Delete Local Branch ${message.ref}` });
+      return mode ? { action, ref: message.ref, options: { force: mode.force } } : undefined;
     }
     if (action === 'pullInto') {
       const [remote, ...branchParts] = (message.ref ?? '').split('/');
@@ -482,7 +476,7 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     return { action, ref: message.ref ?? message.hash, hash: message.hash, hashes: message.hashes, path: message.path, options: message.operation ? { operation: message.operation } : undefined };
   }
 
-  private async prepareInteractiveRebase(plan: GitRebasePlanItem[], allowPublished: boolean): Promise<GitMutationRequest | undefined> {
+  private async prepareInteractiveRebase(plan: GitRebasePlanItem[]): Promise<GitMutationRequest | undefined> {
     if (!this.root || !plan.length) return undefined;
     const details = await Promise.all(plan.map(item => this.service.commitDetail(this.root!, item.hash)));
     if (details.some(item => item.parents.length > 1)) throw new Error('Interactive rebase of merge commits is not supported yet.');
@@ -496,16 +490,13 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     const oldestDetail = details.find(item => item.hash === oldest.hash)!;
     if (!oldestDetail.parents[0]) throw new Error('The root commit cannot be interactively rebased.');
     const published = await this.service.publishedCommits(this.root, plan.map(item => item.hash));
-    if (published.length && !allowPublished) {
-      const choice = await vscode.window.showWarningMessage(
-        `${published.length} selected commit(s) already exist on the upstream branch. Rebase would rewrite published history and may require a manual force-with-lease push.`,
-        { modal: true }, 'Allow Published Rebase');
-      if (choice !== 'Allow Published Rebase') return undefined;
-    }
     const snapshot = await this.service.snapshot(this.root);
     if (snapshot.changedCount) throw new Error('Commit or stash working tree changes before interactive rebase.');
+    const publishedNote = published.length
+      ? ` ${published.length} selected commit(s) exist upstream; completing this change may require a force-with-lease push.`
+      : '';
     const backup = await vscode.window.showWarningMessage(
-      `Preview: rewrite ${plan.length} commit(s) on ${snapshot.head}. No force-push will be performed.`,
+      `Rewrite ${plan.length} commit(s) on ${snapshot.head}?${publishedNote} GitNav will not force-push automatically.`,
       { modal: true }, 'Rebase', 'Create Backup & Rebase');
     if (!backup) return undefined;
     if (backup === 'Create Backup & Rebase') {

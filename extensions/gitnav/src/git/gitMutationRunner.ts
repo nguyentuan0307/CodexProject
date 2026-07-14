@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GitMutationRequest } from './gitPanelModels';
 import { GitRepositoryService } from './gitRepositoryService';
 import { RepositoryMutationQueue } from './gitPanelCoordinator';
-import { matchingProtectedBranchPattern } from './gitBranchProtection';
+import { destructiveWarning, protectedRemoteMutationPattern, requiresDestructiveConfirmation, supportsBackup } from './gitMutationSafety';
 import { isActionAllowedDuringOperation, operationArguments } from './gitOperationFlow';
 import { runGit } from './gitCli';
 import { runInteractiveRebase } from './gitInteractiveRebase';
@@ -23,11 +23,13 @@ export class GitMutationRunner {
     if (operation && !isActionAllowedDuringOperation(request.action)) {
       throw new Error(`${request.action} is blocked while the repository is ${operation}. Continue, skip, or abort the current operation first.`);
     }
-    const protectedPattern = await this.protectedPattern(root);
-    if ((historyRewriteActions.has(request.action) || request.action === 'update' && request.options?.strategy === 'reset') && protectedPattern) {
-      throw new Error(`This operation is blocked because the current branch matches protected pattern "${protectedPattern}".`);
+    const snapshot = await this.service.snapshot(root);
+    const protectedPattern = this.protectedRemotePattern(snapshot.head, request);
+    if (protectedPattern) {
+      throw new Error(`This remote operation is blocked because the branch matches protected pattern "${protectedPattern}".`);
     }
-    if (destructiveActions.has(request.action) && !await confirmDestructive(root, request, this.service)) return false;
+    if (requiresDestructiveConfirmation(request)
+      && !await confirmDestructive(root, request, this.service, snapshot.head, snapshot.upstream)) return false;
     const args = await this.argumentsFor(root, request);
     if (!args) return false;
     return vscode.window.withProgress({
@@ -131,11 +133,10 @@ export class GitMutationRunner {
     }
   }
 
-  private async protectedPattern(root: string): Promise<string | undefined> {
-    const branch = (await this.service.snapshot(root)).head;
+  private protectedRemotePattern(branch: string, request: GitMutationRequest): string | undefined {
     const patterns = vscode.workspace.getConfiguration('gitnav')
       .get<string[]>('protectedBranches', ['main', 'master', 'develop', 'release/*']);
-    return matchingProtectedBranchPattern(branch, patterns);
+    return protectedRemoteMutationPattern(branch, request, patterns);
   }
 
   private async checkoutArgs(root: string, ref: string, detached = false, track = false): Promise<string[] | undefined> {
@@ -171,26 +172,16 @@ export class GitMutationRunner {
   }
 }
 
-const destructiveActions = new Set(['deleteRemote', 'deleteBranch', 'deleteTag', 'stashDrop', 'rollbackFile', 'getFile', 'undoCommit', 'reset', 'dropCommit', 'abort', 'worktreeRemove']);
-const historyRewriteActions = new Set(['undoCommit', 'reset', 'dropCommit', 'interactiveRebase']);
-
-async function confirmDestructive(root: string, request: GitMutationRequest, service: GitRepositoryService): Promise<boolean> {
-  const detail: Record<string, string> = {
-    deleteRemote: `Remote branch ${request.ref} will be deleted for every collaborator.`,
-    stashDrop: `${request.ref} will be permanently removed.`,
-    rollbackFile: `All uncommitted changes in ${request.path} will be permanently discarded.`,
-    getFile: `${request.path} in the working tree will be overwritten.`,
-    undoCommit: 'The HEAD commit will be removed and its changes moved to the index.',
-    reset: `The current branch will be reset to ${request.ref}. Hard mode permanently discards local changes.`
-    ,dropCommit: `Commit ${request.ref} will be removed by rewriting branch history. A force push may be required.`,
-    deleteBranch: `Local branch ${request.ref} will be deleted${request.options?.force ? ' even if it is not merged' : ''}.`,
-    deleteTag: `Tag ${request.ref} will be deleted${request.options?.remote ? ' locally and from '+request.options.remote : ' locally'}.`,
-    abort: `The current ${String(request.options?.operation ?? 'Git operation').toLowerCase()} will be aborted and its in-progress changes discarded.`,
-    worktreeRemove: `Worktree ${request.path} will be removed${request.options?.force ? ' with uncommitted changes' : ''}.`
-  };
-  const canBackup = ['reset', 'dropCommit', 'undoCommit'].includes(request.action);
+async function confirmDestructive(
+  root: string,
+  request: GitMutationRequest,
+  service: GitRepositoryService,
+  branch: string,
+  upstream?: string
+): Promise<boolean> {
+  const canBackup = supportsBackup(request);
   const choice = await vscode.window.showWarningMessage(
-    `Preview: ${detail[request.action]}`,
+    destructiveWarning(request, branch, upstream),
     { modal: true }, 'Continue', ...(canBackup ? ['Create Backup & Continue'] : [])
   );
   if (choice === 'Create Backup & Continue') {

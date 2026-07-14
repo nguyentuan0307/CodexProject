@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.4.1...gitnav-v0.4.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* **gitnav:** clarify sync status and file pane interactions ([a2652d7](https://github.com/nguyentuan0307/DotNav/commit/a2652d71439ef4d613a6619f3027c98944ddd509))
+
 ## [0.4.1](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.4.0...gitnav-v0.4.1) (2026-07-14)
 
 

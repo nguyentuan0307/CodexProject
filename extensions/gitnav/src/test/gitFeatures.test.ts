@@ -188,6 +188,11 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /function renderGraph\(/);
   assert.doesNotMatch(source, /esc\(c\.graph/);
   assert.match(source, /requestAnimationFrame/);
+  assert.match(source, /function indexCommits\(/);
+  assert.match(source, /function refreshSelection\(/);
+  assert.match(source, /document\.body\.classList\.contains\('resizing'\)/);
+  assert.match(source, /localStorage\.setItem\('gitLog\.'\+side,String\(value\)\)/);
+  assert.match(source, /const loadFilteredDebounced=debounce\(loadFiltered,300\)/);
   assert.match(source, /e\.shiftKey&&state\.selectionAnchor/);
   assert.match(source, /\.filter\(hash=>hash&&state\.selectedHashes\.has\(hash\)\)\.reverse\(\)/);
   assert.match(source, /m\.type==='busy'/);
@@ -246,6 +251,8 @@ test('renders Git Log lane focus, action feedback, and worktree support', () => 
   assert.match(provider, /path:item\.dataset\.path/);
   assert.doesNotMatch(provider, /e\.key==='ArrowDown'\|\|e\.key==='ArrowUp'/);
   assert.match(service, /worktree', 'list', '--porcelain'/);
+  assert.match(service, /logCountCache/);
+  assert.doesNotMatch(service, /detailCache\.deletePrefix/);
   assert.match(service, /export function parseWorktrees/);
   assert.match(mutations, /case 'worktreeAdd'/);
   assert.match(mutations, /case 'worktreeRemove'/);

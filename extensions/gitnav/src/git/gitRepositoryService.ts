@@ -16,6 +16,7 @@ export class GitRepositoryService {
   private readonly lastFetched = new Map<string, number>();
   private readonly graphSnapshots = new Map<string, GitGraphSnapshot>();
   private readonly logCache = new BoundedCache<GitLogPage>(30);
+  private readonly logCountCache = new BoundedCache<number>(30);
   private readonly detailCache = new BoundedCache<GitCommitDetail>(80);
   async discoverRepositories(): Promise<string[]> {
     const roots = vscode.workspace.workspaceFolders ?? [];
@@ -73,9 +74,17 @@ export class GitRepositoryService {
     const cacheKey = `${root}\0${offset}\0${limit}\0${JSON.stringify(effectiveFilter)}\0${revisions.join('\0')}`;
     const cached = this.logCache.get(cacheKey);
     if (cached) return cached;
-    const [records, count] = await Promise.all([
+    const countKey = `${root}\0${JSON.stringify(effectiveFilter)}\0${revisions.join('\0')}`;
+    const cachedCount = this.logCountCache.get(countKey);
+    const [records, total] = await Promise.all([
       this.git(root, ['log', `--format=${logPrettyFormat}`, '--decorate=full', `--skip=${offset}`, `--max-count=${limit}`, ...shared, ...tail], token),
-      this.git(root, ['rev-list', '--count', ...shared, ...tail], token)
+      cachedCount !== undefined
+        ? Promise.resolve(cachedCount)
+        : this.git(root, ['rev-list', '--count', ...shared, ...tail], token).then(result => {
+          const value = Number(result.stdout.trim()) || 0;
+          this.logCountCache.set(countKey, value);
+          return value;
+        })
     ]);
     const parsed = parseLog(records.stdout);
     const graphKey = `${root}\0${JSON.stringify(effectiveFilter)}\0${revisions.join('\0')}`;
@@ -85,7 +94,6 @@ export class GitRepositoryService {
     const layout = computeGraphLayout(parsed, this.graphSnapshots.get(`${graphKey}\0${offset}`));
     this.graphSnapshots.set(`${graphKey}\0${offset + parsed.length}`, layout.snapshot);
     const commits = parsed.map(commit => ({ ...commit, lane: layout.lanes[commit.hash] }));
-    const total = Number(count.stdout.trim()) || 0;
     const page = { commits, offset, total, hasMore: offset + commits.length < total };
     this.logCache.set(cacheKey, page);
     return page;
@@ -210,7 +218,7 @@ export class GitRepositoryService {
   invalidateCaches(root: string): void {
     const prefix = `${root}\0`;
     this.logCache.deletePrefix(prefix);
-    this.detailCache.deletePrefix(prefix);
+    this.logCountCache.deletePrefix(prefix);
     for (const key of this.graphSnapshots.keys()) if (key.startsWith(prefix)) this.graphSnapshots.delete(key);
   }
 }

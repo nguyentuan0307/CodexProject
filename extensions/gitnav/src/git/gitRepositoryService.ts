@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { runGit } from './gitCli';
-import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitInlineDiff, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo, GitWorktreeInfo } from './gitPanelModels';
+import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo, GitWorktreeInfo } from './gitPanelModels';
 import { logPrettyFormat, parseLog, parseNameStatusZ, parseNumstatZ, parseWorkingTreeStatus } from './gitPanelParsers';
 import { computeGraphLayout } from './gitGraphLayout';
 import { BoundedCache } from './boundedCache';
@@ -123,17 +123,6 @@ export class GitRepositoryService {
     };
     this.detailCache.set(cacheKey, detail);
     return detail;
-  }
-
-  async inlineDiff(root: string, hash: string | undefined, filePath: string, parent = 1): Promise<GitInlineDiff> {
-    if (!hash) {
-      const result = await this.git(root, ['diff', '--no-ext-diff', '--unified=4', '--', filePath]);
-      return { path: filePath, from: 'index', to: 'working tree', patch: result.stdout, workingTree: true };
-    }
-    const detail = await this.commitDetail(root, hash, parent);
-    const from = detail.parents[parent - 1] ?? emptyTreeHash;
-    const result = await this.git(root, ['diff', '--no-ext-diff', '--unified=4', from, hash, '--', filePath]);
-    return { path: filePath, from, to: hash, patch: result.stdout, workingTree: false };
   }
 
   async publishedCommits(root: string, hashes: string[]): Promise<string[]> {

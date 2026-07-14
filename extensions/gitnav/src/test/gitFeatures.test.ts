@@ -234,6 +234,8 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /function detailHeightKey\(/);
   assert.match(source, /rightSplit'\)\.ondblclick/);
   assert.match(source, /initial\+latest-start/);
+  assert.ok(source.lastIndexOf('.right .right-split{display:block') > source.lastIndexOf('.right .right-split{display:none}'));
+  assert.match(source, /height:7px;flex:0 0 7px;cursor:row-resize/);
   assert.doesNotMatch(source, /'⑂'/);
   assert.match(source, /function showRecoveryToast\(/);
   assert.match(source, /recovery\.actions/);
@@ -270,7 +272,13 @@ test('renders advanced Git Log UX and interactive rebase preview', () => {
   assert.match(source, /data-empty-action="refresh"/);
   assert.doesNotMatch(source, /id="historyMap"/);
   assert.doesNotMatch(source, /function renderHistoryMap\(/);
-  assert.match(source, /function renderInlineDiff\(/);
+  assert.doesNotMatch(source, /function renderInlineDiff\(/);
+  assert.doesNotMatch(source, /send\('inlineDiff'/);
+  assert.match(source, /\['↑ '\+r\.ahead/);
+  assert.match(source, /\['↓ '\+r\.behind/);
+  assert.match(source, />↑ '\+x\.ahead/);
+  assert.match(source, />↓ '\+x\.behind/);
+  assert.match(source, /\.branches \.badge \.branch-ahead/);
   assert.match(source, /Interactive Rebase Preview/);
   assert.match(source, /completing this change may require a force-with-lease push/);
   assert.doesNotMatch(source, /Delete local branch.*showWarningMessage/);

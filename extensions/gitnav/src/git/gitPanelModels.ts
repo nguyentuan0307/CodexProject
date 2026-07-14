@@ -72,14 +72,6 @@ export interface GitRebasePlanItem {
   readonly message?: string;
 }
 
-export interface GitInlineDiff {
-  readonly path: string;
-  readonly from: string;
-  readonly to: string;
-  readonly patch: string;
-  readonly workingTree: boolean;
-}
-
 export interface GitRepositorySnapshot {
   readonly root: string;
   readonly name: string;

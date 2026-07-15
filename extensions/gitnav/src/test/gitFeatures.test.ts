@@ -189,6 +189,7 @@ test('renders Git Log context actions inside the webview', () => {
   assert.match(source, /class="graph-clip" id="graphClip"/);
   assert.match(source, /\.graph-clip\{[^}]*overflow:hidden/);
   assert.match(source, /function renderGraph\(/);
+  assert.match(source, /clip\.style\.transform='translateY\('\+vp\.scrollTop\+'px\)'/);
   assert.doesNotMatch(source, /esc\(c\.graph/);
   assert.match(source, /requestAnimationFrame/);
   assert.match(source, /function indexCommits\(/);

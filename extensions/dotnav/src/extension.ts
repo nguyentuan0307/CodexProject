@@ -315,7 +315,7 @@ async function buildFolderProjects(provider: DotnetTreeProvider, processManager:
     vscode.window.showInformationMessage(`No projects were found under ${node.label}.`);
     return;
   }
-  await runDotnetForProjects(projects, node.resourcePath ?? solution.rootPath, processManager);
+  await runDotnetForProjects(projects, node.resourcePath ?? solution.rootPath, processManager, node.label);
 }
 
 async function runSolutionCommand(

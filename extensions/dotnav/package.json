@@ -717,6 +717,12 @@
           "minimum": 1,
           "description": "Maximum time in seconds to wait for a build before marking the run as failed."
         },
+        "dotnav.maxParallelBuilds": {
+          "type": "number",
+          "default": 6,
+          "minimum": 1,
+          "description": "Maximum number of MSBuild workers used by Build Projects in Folder."
+        },
         "dotnav.startTimeoutSeconds": {
           "type": "number",
           "default": 30,

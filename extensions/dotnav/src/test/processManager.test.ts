@@ -128,6 +128,38 @@ test('tracks a rebuild task as a cancellable build operation', async () => {
   manager.dispose();
 });
 
+test('tracks one folder task for every project and stops the shared task from any project', async () => {
+  const manager = new ProcessManager();
+  const secondProject = { ...project, name: 'Lib', path: 'C:\\repo\\Lib.csproj', relativePath: 'Lib.csproj' };
+  let terminateCalls = 0;
+  const execution = { terminate: () => { terminateCalls += 1; } };
+  const binding = manager.trackTaskGroup([project, secondProject], 'build', execution as never);
+
+  assert.equal(manager.getProjectPhase(project), 'building');
+  assert.equal(manager.getProjectPhase(secondProject), 'building');
+  await manager.stopProject(secondProject);
+  assert.equal(terminateCalls, 1);
+  assert.deepEqual(manager.getSession(binding.runId)?.targets.map(target => target.phase), ['stopping', 'stopping']);
+
+  taskProcessEnded.fire({ execution, exitCode: 1 });
+  taskEnded.fire({ execution });
+  await delay(300);
+  assert.deepEqual(manager.getSession(binding.runId)?.targets.map(target => target.phase), ['stopped', 'stopped']);
+  manager.dispose();
+});
+
+test('finishes every project in a successful shared folder task', async () => {
+  const manager = new ProcessManager();
+  const secondProject = { ...project, name: 'Lib', path: 'C:\\repo\\Lib.csproj', relativePath: 'Lib.csproj' };
+  const execution = { terminate: () => undefined };
+  const binding = manager.trackTaskGroup([project, secondProject], 'build', execution as never);
+  taskProcessEnded.fire({ execution, exitCode: 0 });
+  taskEnded.fire({ execution });
+  await delay(10);
+  assert.deepEqual(manager.getSession(binding.runId)?.targets.map(target => target.phase), ['succeeded', 'succeeded']);
+  manager.dispose();
+});
+
 test('cleans up a task even when no process-end event is emitted', async () => {
   const manager = new ProcessManager();
   const session = manager.beginRun('operation:build:app', 'Build App', 'build', [{ project }]);

@@ -1,8 +1,11 @@
 import * as path from 'path';
+import * as os from 'os';
+import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { ProjectModel, SolutionModel } from './models';
 import { samePath } from './pathUtils';
 import { ProcessManager } from './processManager';
+import { createFolderBuildProject, normalizeMaxParallelBuilds } from './folderBuild';
 
 export type SolutionOperation = 'build' | 'rebuild' | 'clean';
 
@@ -151,7 +154,8 @@ export async function runDotnetForSolution(
 export async function runDotnetForProjects(
   projects: ProjectModel[],
   folderPath: string,
-  processManager: ProcessManager
+  processManager: ProcessManager,
+  folderLabel?: string
 ): Promise<void> {
   const busy = projects.find(project => processManager.getProjectPhase(project));
   if (busy) {
@@ -164,51 +168,70 @@ export async function runDotnetForProjects(
   const timeoutMs = Math.max(1, vscode.workspace
     .getConfiguration('dotnav')
     .get<number>('buildTimeoutSeconds', 600)) * 1000;
-  const folderName = path.basename(folderPath);
+  const folderName = folderLabel ?? path.basename(folderPath);
+  const maxParallelBuilds = normalizeMaxParallelBuilds(vscode.workspace
+    .getConfiguration('dotnav')
+    .get<number>('maxParallelBuilds', 6));
+  let tempDirectory: string | undefined;
 
-  await vscode.window.withProgress({
-    location: vscode.ProgressLocation.Notification,
-    cancellable: true,
-    title: `Build ${folderName} (${projects.length} projects)`
-  }, async (progress, token) => {
-    for (let index = 0; index < projects.length; index++) {
-      if (token.isCancellationRequested) return;
-      const project = projects[index];
-      progress.report({ message: `${index + 1}/${projects.length} ${project.name}` });
+  try {
+    tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'dotnav-build-'));
+    const orchestrationPath = path.join(tempDirectory, 'folder-build.proj');
+    await fs.writeFile(orchestrationPath, createFolderBuildProject(projects), 'utf8');
+
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      cancellable: true,
+      title: `Build ${folderName} (${projects.length} projects, ${maxParallelBuilds} workers)`
+    }, async (progress, token) => {
+      progress.report({ message: `${configuration} · up to ${maxParallelBuilds} parallel workers` });
       const task = new vscode.Task(
-        { type: 'dotnet', task: 'build-folder', project: project.path, folder: folderPath },
+        { type: 'dotnet', task: 'build-folder', projects: projects.map(project => project.path), folder: folderPath },
         vscode.TaskScope.Workspace,
-        `build ${project.name}`,
+        `build ${folderName} (${projects.length} projects)`,
         '.NET Navigator',
-        new vscode.ProcessExecution('dotnet', ['build', project.path, '--configuration', configuration], { cwd: project.directory }),
+        new vscode.ProcessExecution('dotnet', [
+          'msbuild', orchestrationPath, `-maxCpuCount:${maxParallelBuilds}`, `-p:Configuration=${configuration}`
+        ], { cwd: folderPath }),
         ['$msCompile']
       );
+      const session = processManager.beginRun(
+        `folder-build:${path.resolve(folderPath)}`,
+        `build ${folderName}`,
+        'build',
+        projects.map(project => ({ project }))
+      );
       let execution: vscode.TaskExecution;
-      try { execution = await vscode.tasks.executeTask(task); }
+      try {
+        execution = await vscode.tasks.executeTask(task);
+      }
       catch (error) {
-        vscode.window.showErrorMessage(`Could not build ${project.name}: ${error instanceof Error ? error.message : String(error)}`);
+        const message = `Could not start folder build: ${error instanceof Error ? error.message : String(error)}`;
+        processManager.failRun(session.runId, { code: 'unexpected-exit', message });
+        vscode.window.showErrorMessage(message);
         return;
       }
-      const binding = processManager.trackTask(project, 'build', execution);
+      const binding = processManager.trackTaskGroup(projects, 'build', execution, session.runId);
       const cancellation = token.onCancellationRequested(() => { void processManager.stopRun(binding.runId); });
       try {
         const exitCode = await processManager.waitForTask(execution, timeoutMs);
         if (token.isCancellationRequested) return;
-        if (exitCode !== 0) {
-          vscode.window.showErrorMessage(`Build stopped: ${project.name} failed (${index + 1}/${projects.length}).`);
-          return;
-        }
+        if (exitCode === 0) vscode.window.showInformationMessage(`Build succeeded for ${projects.length} project${projects.length === 1 ? '' : 's'} under ${folderName}.`);
+        else if (exitCode === undefined) vscode.window.showErrorMessage(`Build ended without an exit code for ${folderName}.`);
+        else vscode.window.showErrorMessage(`Build failed for projects under ${folderName} (exit code ${exitCode}).`);
       } catch (error) {
-        processManager.terminateTimedOutTask(binding.runId, binding.targetId, execution, {
-          code: 'build-timeout', message: `Build timed out for ${project.name}.`,
+        processManager.terminateTimedOutRunTask(binding.runId, execution, {
+          code: 'build-timeout', message: `Folder build timed out for ${folderName}.`,
           cause: error instanceof Error ? error.message : String(error)
         });
-        vscode.window.showErrorMessage(`Build timed out for ${project.name}.`);
-        return;
+        vscode.window.showErrorMessage(`Folder build timed out for ${folderName}.`);
       } finally { cancellation.dispose(); }
-    }
-    vscode.window.showInformationMessage(`Build succeeded for ${projects.length} project${projects.length === 1 ? '' : 's'} under ${folderName}.`);
-  });
+    });
+  } catch (error) {
+    vscode.window.showErrorMessage(`Could not prepare folder build: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    if (tempDirectory) await fs.rm(tempDirectory, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 function solutionTaskTarget(solution: SolutionModel): ProjectModel {

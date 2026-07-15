@@ -146,6 +146,7 @@ Key files:
 - Task cleanup uses `onDidEndTask` as the completion signal and `onDidEndTaskProcess` to capture the exit code.
 - Stop requests retain the `stopping` phase until VSCode confirms task/debug-session termination.
 - Build waits have a configurable timeout through `dotnetSolutionNavigator.buildTimeoutSeconds`.
+- **Build Projects in Folder** uses one parallel MSBuild graph session, with the worker limit configurable through `dotnav.maxParallelBuilds` (default: 6).
 - Run/debug startup has a configurable timeout through `dotnetSolutionNavigator.startTimeoutSeconds`.
 - Debug sessions are matched through run/target markers instead of display names.
 - Debug sessions arriving after Start timeout or Stop are tombstoned, tracked, and stopped immediately.

@@ -23,11 +23,10 @@ export interface RunTargetDescriptor {
 }
 
 interface TaskBinding {
-  readonly projectPath: string;
   readonly verb: TaskVerb;
   readonly execution: vscode.TaskExecution;
   readonly runId: string;
-  readonly targetId: string;
+  readonly targetIds: readonly string[];
   exitCode?: number;
 }
 
@@ -171,6 +170,20 @@ export class ProcessManager implements vscode.Disposable {
     this.emitSession(session);
   }
 
+  terminateTimedOutRunTask(runId: string, execution: vscode.TaskExecution, failure: RunFailure): void {
+    const session = this.sessionsById.get(runId);
+    if (!session) return;
+    for (const target of session.targets) {
+      target.error = failure;
+      if (isActivePhase(target.phase) && target.phase !== 'stopping') transitionTarget(target, 'stopping');
+      this.stopRequests.add(debugTargetKey(runId, target.targetId));
+      this.armStopTimeout(session, target);
+    }
+    if (session.targets[0]) this.requestTaskTermination(execution, session, session.targets[0]);
+    syncSessionPhase(session);
+    this.emitSession(session);
+  }
+
   expectDebugSession(project: ProjectModel, sessionName: string, runId?: string, targetId?: string): void {
     if (!runId || !targetId) {
       const synthetic = this.beginRun(`project:${normalizePath(project.path)}`, sessionName, 'debug', [{ project }]);
@@ -269,11 +282,10 @@ export class ProcessManager implements vscode.Disposable {
     }
 
     const binding: TaskBinding = {
-      projectPath: project.path,
       verb,
       execution,
       runId,
-      targetId,
+      targetIds: [targetId],
       exitCode: this.taskExitCodes.get(execution)
     };
     this.taskBindings.set(execution, binding);
@@ -295,6 +307,46 @@ export class ProcessManager implements vscode.Disposable {
     }
 
     return { runId, targetId };
+  }
+
+  trackTaskGroup(
+    projects: readonly ProjectModel[],
+    verb: TaskVerb,
+    execution: vscode.TaskExecution,
+    runId?: string
+  ): { runId: string; targetIds: readonly string[] } {
+    const session = runId
+      ? this.sessionsById.get(runId)
+      : this.beginRun(
+        `operation:${verb}:group:${projects.map(project => normalizePath(project.path)).join('|')}`,
+        `${verb} ${projects.length} projects`,
+        'build',
+        projects.map(project => ({ project }))
+      );
+    if (!session) throw new Error(`Run session ${runId} was not found.`);
+    const targetIds = session.targets.map(target => target.targetId);
+    this.taskBindings.set(execution, {
+      verb, execution, runId: session.runId, targetIds,
+      exitCode: this.taskExitCodes.get(execution)
+    });
+    for (const target of session.targets) {
+      if (target.phase === 'queued') transitionTarget(target, 'building');
+    }
+    syncSessionPhase(session);
+    this.emitSession(session);
+    if (this.completedTasks.has(execution)) queueMicrotask(() => this.finishTaskExecution(execution));
+    return { runId: session.runId, targetIds };
+  }
+
+  failRun(runId: string, failure: RunFailure): void {
+    const session = this.sessionsById.get(runId);
+    if (!session) return;
+    for (const target of session.targets) {
+      if (isActivePhase(target.phase)) transitionTarget(target, 'failed');
+      target.error = failure;
+    }
+    syncSessionPhase(session);
+    this.emitSession(session);
   }
 
   waitForTask(execution: vscode.TaskExecution, timeoutMs: number): Promise<number | undefined> {
@@ -332,7 +384,12 @@ export class ProcessManager implements vscode.Disposable {
     const sessions = this.getActiveSessions().filter(session =>
       session.targets.some(target => samePath(target.projectPath, project.path) && isActivePhase(target.phase))
     );
-    await Promise.all(sessions.map(session => this.stopSession(session, project.path)));
+    await Promise.all(sessions.map(session => {
+      const hasSharedTask = [...this.taskBindings.values()].some(binding =>
+        binding.runId === session.runId && binding.targetIds.length > 1
+      );
+      return this.stopSession(session, hasSharedTask ? undefined : project.path);
+    }));
   }
 
   async stopAll(): Promise<void> {
@@ -419,8 +476,8 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
     for (const binding of this.taskBindings.values()) {
-      if (binding.runId === session.runId && newlyRequestedTargetIds.has(binding.targetId)) {
-        const found = this.findTarget(binding.runId, binding.targetId);
+      if (binding.runId === session.runId && binding.targetIds.some(id => newlyRequestedTargetIds.has(id))) {
+        const found = this.findTarget(binding.runId, binding.targetIds[0]);
         if (found) {
           this.requestTaskTermination(binding.execution, found.session, found.target);
         }
@@ -542,18 +599,18 @@ export class ProcessManager implements vscode.Disposable {
     if (binding) {
       this.taskBindings.delete(execution);
       const session = this.sessionsById.get(binding.runId);
-      const target = session?.targets.find(candidate => candidate.targetId === binding.targetId);
-      if (target?.phase === 'stopping') {
-        this.finishRuntimeTarget(binding.runId, binding.targetId, binding.exitCode);
+      const targets = session?.targets.filter(candidate => binding.targetIds.includes(candidate.targetId)) ?? [];
+      if (targets.some(target => target.phase === 'stopping')) {
+        for (const target of targets) this.finishRuntimeTarget(binding.runId, target.targetId, binding.exitCode);
       } else if (binding.verb === 'build' && session && session.mode !== 'build' && binding.exitCode === 0) {
         this.emitSession(session);
       } else if (binding.exitCode === undefined) {
-        this.failTarget(binding.runId, binding.targetId, {
+        this.failRun(binding.runId, {
           code: 'unexpected-exit',
           message: `Could not determine the exit code for ${binding.verb}.`
         });
       } else {
-        this.finishRuntimeTarget(binding.runId, binding.targetId, binding.exitCode);
+        for (const target of targets) this.finishRuntimeTarget(binding.runId, target.targetId, binding.exitCode);
       }
     }
     this.resolveCompletionWaiters(execution);
@@ -708,7 +765,7 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   private targetHasRuntime(runId: string, targetId: string): boolean {
-    return [...this.taskBindings.values()].some(binding => binding.runId === runId && binding.targetId === targetId)
+    return [...this.taskBindings.values()].some(binding => binding.runId === runId && binding.targetIds.includes(targetId))
       || [...this.debugBindings.values()].some(binding => binding.runId === runId && binding.targetId === targetId)
       || this.pendingDebugTargets.some(binding => binding.runId === runId && binding.targetId === targetId);
   }
@@ -771,7 +828,7 @@ export class ProcessManager implements vscode.Disposable {
       return;
     }
     const binding = [...this.taskBindings.values()].find(candidate =>
-      candidate.runId === session.runId && candidate.targetId === target.targetId
+      candidate.runId === session.runId && candidate.targetIds.includes(target.targetId)
     );
     if (!binding || !vscode.tasks.taskExecutions.includes(binding.execution)) {
       return;

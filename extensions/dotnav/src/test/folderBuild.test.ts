@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { projectsUnderFolder, projectsUnderSolutionFolder, sortProjectsByReferences } from '../folderBuild';
+import { createFolderBuildProject, normalizeMaxParallelBuilds, projectsUnderFolder, projectsUnderSolutionFolder, sortProjectsByReferences } from '../folderBuild';
 import { ProjectModel, SolutionModel } from '../models';
 
 function project(name: string, projectPath: string, references: string[] = [], solutionFolder?: string[]): ProjectModel {
@@ -39,4 +39,25 @@ test('orders folder projects dependency-first and tolerates cycles', () => {
   const cyclicA = project('A', '/repo/A.csproj', ['/repo/B.csproj']);
   const cyclicB = project('B', '/repo/B.csproj', ['/repo/A.csproj']);
   assert.deepEqual(new Set(sortProjectsByReferences([cyclicA, cyclicB]).map(item => item.name)), new Set(['A', 'B']));
+});
+
+test('creates one parallel restore and build orchestration with XML-safe project paths', () => {
+  const xml = createFolderBuildProject([
+    project('A', '/repo/A & tools/A.csproj'),
+    project('B', '/repo/B/B<special>.csproj')
+  ]);
+  assert.match(xml, /Include="\/repo\/A &amp; tools\/A\.csproj"/);
+  assert.match(xml, /Include="\/repo\/B\/B&lt;special&gt;\.csproj"/);
+  assert.match(xml, /Name="Restore"/);
+  assert.match(xml, /Name="Build" DependsOnTargets="Restore"/);
+  assert.equal((xml.match(/BuildInParallel="true"/g) ?? []).length, 2);
+  assert.match(xml, /Properties="Configuration=\$\(Configuration\)"/);
+});
+
+test('normalizes the parallel MSBuild worker limit', () => {
+  assert.equal(normalizeMaxParallelBuilds(undefined), 6);
+  assert.equal(normalizeMaxParallelBuilds(12), 12);
+  assert.equal(normalizeMaxParallelBuilds(2.9), 2);
+  assert.equal(normalizeMaxParallelBuilds(0), 1);
+  assert.equal(normalizeMaxParallelBuilds(-4), 1);
 });

@@ -8,6 +8,18 @@
 * preserve branch and search filters when Git history refreshes after mutations
 * synchronize local commits, branch changes, and working tree state through VS Code Git events
 
+## [0.5.0](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.4.4...gitnav-v0.5.0) (2026-07-15)
+
+
+### Features
+
+* **gitnav:** synchronize local Git state ([6df1309](https://github.com/nguyentuan0307/DotNav/commit/6df13098742158bd48480885fdba9fdde7722098))
+
+
+### Bug Fixes
+
+* **gitnav:** preserve log filters after refresh ([63619be](https://github.com/nguyentuan0307/DotNav/commit/63619beed47afac5a97b9ee1aec60428b584a70d))
+
 ## [0.4.4](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.4.3...gitnav-v0.4.4) (2026-07-15)
 
 

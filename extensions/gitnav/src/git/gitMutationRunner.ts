@@ -8,6 +8,7 @@ import { runGit } from './gitCli';
 import { runInteractiveRebase } from './gitInteractiveRebase';
 import { GitRebasePlanItem } from './gitPanelModels';
 import { currentBranchPushArgs, currentBranchPushPlan, pushNamedBranchArgs, sameNameRemoteBranchPlan, sameNameUpdateArgs, updateNamedBranchArgs } from './gitPush';
+import { actionConfirmationLabel, actionLabel, actionProgress } from './gitActionPolicy';
 
 class GitMutationExecutionContext {
   constructor(
@@ -43,10 +44,11 @@ export class GitMutationRunner {
       && !await confirmDestructive(root, request, this.service, snapshot)) return false;
     const args = await this.argumentsFor(context);
     if (!args) return false;
+    const progress = actionProgress(request.action);
     return vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification,
-      title: `Git: ${labelFor(request.action)}`,
-      cancellable: true
+      location: progress === 'notification' ? vscode.ProgressLocation.Notification : vscode.ProgressLocation.Window,
+      title: `Git: ${actionLabel(request.action)}`,
+      cancellable: progress === 'notification'
     }, async (_progress, token) => {
       await this.service.git(root, args, token);
       if (request.action === 'fetch' || request.action === 'update') this.service.markFetched(root);
@@ -167,7 +169,6 @@ export class GitMutationRunner {
     const base = ['switch', ...(detached ? ['--detach'] : []), ...(track ? ['--track'] : []), ref];
     if (snapshot.operation) throw new Error(`Checkout is blocked while the repository is ${snapshot.operation}. Continue or abort that operation first.`);
     if (!detached && snapshot.head === ref) {
-      void vscode.window.showInformationMessage(`${ref} is already checked out.`);
       return undefined;
     }
     if (!snapshot.changedCount) return base;
@@ -202,16 +203,16 @@ async function confirmDestructive(
   snapshot: GitRepositorySnapshot
 ): Promise<boolean> {
   const canBackup = supportsBackup(request);
+  const confirmationLabel = actionConfirmationLabel(request);
+  const backupLabel = `Create Backup & ${confirmationLabel}`;
   const choice = await vscode.window.showWarningMessage(
     destructiveWarning(request, snapshot.head, snapshot.upstream),
-    { modal: true }, 'Continue', ...(canBackup ? ['Create Backup & Continue'] : [])
+    { modal: true }, confirmationLabel, ...(canBackup ? [backupLabel] : [])
   );
-  if (choice === 'Create Backup & Continue') {
+  if (choice === backupLabel) {
     const name = `backup/${snapshot.head}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     await service.git(root, ['branch', name, 'HEAD']);
   }
-  return choice === 'Continue' || choice === 'Create Backup & Continue';
+  return choice === confirmationLabel || choice === backupLabel;
 }
-
-function labelFor(action: string): string { return action.replace(/([A-Z])/g, ' $1').toLowerCase(); }
 function validateBranchName(value: string): string | undefined { return value && !/[~^:?*[\\\s]|\.\.|@\{|\/$/.test(value) ? undefined : 'Enter a valid Git branch name.'; }

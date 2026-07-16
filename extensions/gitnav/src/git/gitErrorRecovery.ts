@@ -1,4 +1,4 @@
-export type GitRecoveryKind = 'emptyCherryPick';
+export type GitRecoveryKind = 'emptyCherryPick' | 'pushRejected';
 
 export interface GitErrorRecovery {
   readonly kind: GitRecoveryKind;
@@ -7,7 +7,7 @@ export interface GitErrorRecovery {
   readonly actions: Array<{ readonly label: string; readonly action: string }>;
 }
 
-export function classifyGitError(message: string): GitErrorRecovery | undefined {
+export function classifyGitError(message: string, action?: string): GitErrorRecovery | undefined {
   if (/previous cherry-pick is now empty|cherry-pick.*empty/i.test(message)) {
     return {
       kind: 'emptyCherryPick',
@@ -18,6 +18,14 @@ export function classifyGitError(message: string): GitErrorRecovery | undefined 
         { label: 'Commit Empty & Continue', action: 'commitEmptyContinue' },
         { label: 'Abort', action: 'abort' }
       ]
+    };
+  }
+  if (action === 'push' && /rejected|non-fast-forward/i.test(message)) {
+    return {
+      kind: 'pushRejected',
+      title: 'Push rejected',
+      detail: message.trim(),
+      actions: [{ label: 'Update Current Branch', action: 'update' }]
     };
   }
   return undefined;

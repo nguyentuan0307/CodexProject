@@ -260,10 +260,10 @@ test('renders Git Log lane focus, action feedback, and worktree support', () => 
   const service = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitRepositoryService.ts'), 'utf8');
   const mutations = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitMutationRunner.ts'), 'utf8');
   assert.match(provider, /function selectedFirstParentPath\(\)/);
-  assert.match(provider, /showActionFeedback\(m\.action,m\.durationMs\)/);
+  assert.match(provider, /showActionFeedback\(m\.feedback\|\|'status',m\.actionLabel/);
   assert.match(provider, /data-kind="'\+\(x\.current\?'worktreeCurrent':'worktree'\)/);
   assert.match(provider, /path:item\.dataset\.path/);
-  assert.doesNotMatch(provider, /e\.key==='ArrowDown'\|\|e\.key==='ArrowUp'/);
+  assert.match(provider, /e\.key==='ArrowDown'\|\|e\.key==='ArrowUp'/);
   assert.match(service, /worktree', 'list', '--porcelain'/);
   assert.doesNotMatch(service, /rev-list', '--count/);
   assert.match(service, /`--max-count=\$\{limit \+ 1\}`/);
@@ -294,7 +294,7 @@ test('reuses mutation state and keeps expensive refresh work off the action crit
 
 test('renders advanced Git Log UX and interactive rebase preview', () => {
   const source = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
-  assert.match(source, /data-empty-action="refresh"/);
+  assert.match(source, /\['ready','refresh','loadLog'\]\.includes\(m\.scope\)/);
   assert.doesNotMatch(source, /id="historyMap"/);
   assert.doesNotMatch(source, /function renderHistoryMap\(/);
   assert.doesNotMatch(source, /function renderInlineDiff\(/);
@@ -331,6 +331,14 @@ test('renders advanced Git Log UX and interactive rebase preview', () => {
   assert.match(source, /updateBranchFromOrigin/);
   assert.match(source, /Update Current Branch/);
   assert.match(source, /contextActions\(message\.kind, message\.current === true\)/);
+  assert.match(source, /data-menu-action/);
+  assert.match(source, /Push Options…/);
+  assert.match(source, /function renderContextMenuGroup/);
+  assert.match(source, /data-context-group="more"/);
+  assert.match(source, /item\.group==='danger'/);
+  assert.match(source, /gitLog\.sectionCollapsed/);
+  assert.match(source, /aria-live="assertive"/);
+  assert.match(source, /role="tree" aria-label="Changed files"/);
 });
 
 test('keeps embedded Git Log webview JavaScript syntactically valid', () => {

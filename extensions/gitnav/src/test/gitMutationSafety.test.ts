@@ -42,3 +42,29 @@ test('confirms and offers backup for reset-to-upstream', () => {
   assert.match(destructiveWarning(request, 'feature/a', 'origin/main'), /origin\/feature\/a/);
   assert.doesNotMatch(destructiveWarning(request, 'feature/a', 'origin/main'), /origin\/main/);
 });
+
+test('confirms only reset modes that discard work', () => {
+  assert.equal(requiresDestructiveConfirmation({ action: 'reset', options: { mode: 'soft' } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'reset', options: { mode: 'mixed' } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'reset', options: { mode: 'keep' } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'reset', options: { mode: 'hard' } }), true);
+});
+
+test('confirms force delete but lets Git safely reject an unmerged branch', () => {
+  assert.equal(requiresDestructiveConfirmation({ action: 'deleteBranch', options: { force: false } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'deleteBranch', options: { force: true } }), true);
+});
+
+test('confirms remote and destructive working tree mutations', () => {
+  assert.equal(requiresDestructiveConfirmation({ action: 'push', options: { forceLease: false } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'push', options: { forceLease: true } }), true);
+  assert.equal(requiresDestructiveConfirmation({ action: 'deleteTag' }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'deleteTag', options: { remote: 'origin' } }), true);
+  assert.equal(requiresDestructiveConfirmation({ action: 'worktreeRemove' }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'worktreeRemove', options: { force: true } }), true);
+});
+
+test('confirms abort only when resolved changes may be discarded', () => {
+  assert.equal(requiresDestructiveConfirmation({ action: 'abort', options: { operation: 'REBASING', hasResolvedChanges: false } }), false);
+  assert.equal(requiresDestructiveConfirmation({ action: 'abort', options: { operation: 'REBASING', hasResolvedChanges: true } }), true);
+});

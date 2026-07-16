@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+* simplify Git workflows with direct safe actions and consequence-specific confirmations
+* organize context menus into primary, advanced, and destructive action groups
+* reduce notification noise with inline status feedback and scoped error recovery
+* improve branch, filter, changed-file, keyboard, responsive, and accessibility behavior
+
 ### Bug Fixes
 
 * keep push, pull, update, and branch synchronization pinned to the same-named origin branch

@@ -16,12 +16,18 @@ export function protectedRemoteMutationPattern(
 }
 
 export function requiresDestructiveConfirmation(request: GitMutationRequest): boolean {
+  if (request.action === 'reset') return request.options?.mode === 'hard';
+  if (request.action === 'deleteBranch') return request.options?.force === true;
+  if (request.action === 'worktreeRemove') return request.options?.force === true;
+  if (request.action === 'deleteTag') return request.options?.remote !== undefined;
+  if (request.action === 'abort') return request.options?.hasResolvedChanges === true;
   return destructiveActions.has(request.action)
-    || request.action === 'update' && request.options?.strategy === 'reset';
+    || request.action === 'update' && request.options?.strategy === 'reset'
+    || request.action === 'push' && request.options?.forceLease === true;
 }
 
 export function supportsBackup(request: GitMutationRequest): boolean {
-  return ['reset', 'dropCommit', 'undoCommit'].includes(request.action)
+  return ['reset', 'dropCommit'].includes(request.action)
     || request.action === 'update' && request.options?.strategy === 'reset';
 }
 
@@ -56,6 +62,5 @@ export function destructiveWarning(request: GitMutationRequest, branch: string, 
 }
 
 const destructiveActions = new Set([
-  'deleteRemote', 'deleteBranch', 'deleteTag', 'stashDrop', 'rollbackFile', 'getFile',
-  'undoCommit', 'reset', 'dropCommit', 'abort', 'worktreeRemove'
+  'deleteRemote', 'stashDrop', 'rollbackFile', 'getFile', 'dropCommit'
 ]);

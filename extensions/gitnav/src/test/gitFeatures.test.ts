@@ -333,8 +333,16 @@ test('renders advanced Git Log UX and interactive rebase preview', () => {
   assert.match(source, /contextActions\(message\.kind, message\.current === true\)/);
   assert.match(source, /data-menu-action/);
   assert.match(source, /Push Options…/);
-  assert.match(source, /function renderContextMenuGroup/);
+  assert.match(source, /function renderContextMenu\(/);
   assert.match(source, /data-context-group="more"/);
+  assert.match(source, /function showContextSubmenu\(/);
+  assert.match(source, /\.onpointerover=e=>/);
+  assert.match(source, /aria-haspopup="menu"/);
+  assert.match(source, /function closeContextMenus\(/);
+  assert.match(source, /Push Recovery Settings…/);
+  assert.match(source, /Remember this choice for this repository/);
+  assert.match(source, /querySelectorAll\('\.file'\)/);
+  assert.doesNotMatch(source, /state\.selectedFilePath=file\.dataset\.path;renderFiles/);
   assert.match(source, /item\.group==='danger'/);
   assert.match(source, /gitLog\.sectionCollapsed/);
   assert.match(source, /aria-live="assertive"/);

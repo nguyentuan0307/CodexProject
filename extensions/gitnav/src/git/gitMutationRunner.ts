@@ -9,6 +9,7 @@ import { runInteractiveRebase } from './gitInteractiveRebase';
 import { GitRebasePlanItem } from './gitPanelModels';
 import { currentBranchPushArgs, currentBranchPushPlan, pushNamedBranchArgs, sameNameRemoteBranchPlan, sameNameUpdateArgs, updateNamedBranchArgs } from './gitPush';
 import { actionConfirmationLabel, actionLabel, actionProgress } from './gitActionPolicy';
+import { prepareRecoveredPush } from './gitPushRecovery';
 
 class GitMutationExecutionContext {
   constructor(
@@ -80,6 +81,13 @@ export class GitMutationRunner {
         currentBranchPushPlan(snapshot),
         { forceLease: request.options?.forceLease === true, tags: request.options?.tags === true }
       );
+      case 'pushAfterUpdate': {
+        const strategy = request.options?.strategy === 'rebase' ? 'rebase' : 'merge';
+        return prepareRecoveredPush({
+          git: async (repositoryRoot, args) => this.service.git(repositoryRoot, args),
+          snapshot: repositoryRoot => this.service.snapshot(repositoryRoot, undefined, true)
+        }, root, strategy);
+      }
       case 'checkout': return this.checkoutArgs(context, ref, request.options?.detached === true);
       case 'checkoutUpdate': {
         const checkout = request.options?.remote ? await this.remoteCheckoutArgs(context, ref) : await this.checkoutArgs(context, ref);

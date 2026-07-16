@@ -15,5 +15,14 @@ test('does not replace ordinary Git errors with unrelated recovery actions', () 
 test('offers an update action when a push is rejected', () => {
   const recovery = classifyGitError('rejected: non-fast-forward', 'push');
   assert.equal(recovery?.kind, 'pushRejected');
-  assert.deepEqual(recovery?.actions, [{ label: 'Update Current Branch', action: 'update' }]);
+  assert.deepEqual(recovery?.actions.map(item => ({ label: item.label, action: item.action, strategy: item.strategy })), [
+    { label: 'Rebase then Push', action: 'pushAfterUpdate', strategy: 'rebase' },
+    { label: 'Merge then Push', action: 'pushAfterUpdate', strategy: 'merge' }
+  ]);
+});
+
+test('offers force delete only after safe branch deletion is rejected', () => {
+  const recovery = classifyGitError("error: branch 'feature/a' is not fully merged", 'deleteBranch');
+  assert.equal(recovery?.kind, 'branchNotMerged');
+  assert.deepEqual(recovery?.actions.map(item => ({ label: item.label, action: item.action })), [{ label: 'Force Delete Branch', action: 'forceDeleteBranch' }]);
 });

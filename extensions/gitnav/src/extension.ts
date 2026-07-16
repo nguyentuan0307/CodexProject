@@ -12,7 +12,7 @@ import { subscribeToBuiltInGitChanges } from './git/gitLocalSync';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const branchCompareProvider = new BranchCompareDocumentProvider();
   const repositoryService = new GitRepositoryService();
-  const gitLogProvider = new GitLogViewProvider(repositoryService, context.extensionUri);
+  const gitLogProvider = new GitLogViewProvider(repositoryService, context.extensionUri, context.workspaceState);
 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider('gitnav-compare', branchCompareProvider),

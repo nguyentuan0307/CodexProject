@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.9.0](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.8.0...gitnav-v0.9.0) (2026-07-16)
+
+
+### Features
+
+* **gitnav:** polish update workflow UI ([4a766ba](https://github.com/nguyentuan0307/DotNav/commit/4a766ba1bfff86e5fd7709ae6f570ae8599103df))
+
+
 ## [0.8.0](https://github.com/nguyentuan0307/DotNav/compare/gitnav-v0.7.0...gitnav-v0.8.0) (2026-07-16)
 
 

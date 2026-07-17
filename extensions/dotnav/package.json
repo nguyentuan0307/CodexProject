@@ -205,31 +205,31 @@
       },
       {
         "command": "dotnav.addClass",
-        "title": "Add: New Class"
+        "title": "Class"
       },
       {
         "command": "dotnav.addInterface",
-        "title": "Add: New Interface"
+        "title": "Interface"
       },
       {
         "command": "dotnav.addRecord",
-        "title": "Add: New Record"
+        "title": "Record"
       },
       {
         "command": "dotnav.addEnum",
-        "title": "Add: New Enum"
+        "title": "Enum"
       },
       {
         "command": "dotnav.addFile",
-        "title": "Add: New File"
+        "title": "File"
       },
       {
         "command": "dotnav.addFolder",
-        "title": "Add: New Folder"
+        "title": "Folder"
       },
       {
         "command": "dotnav.addExistingItem",
-        "title": "Add: Existing Item..."
+        "title": "Existing Item..."
       },
       {
         "command": "dotnav.renameItem",
@@ -245,17 +245,17 @@
       },
       {
         "command": "dotnav.copyPath",
-        "title": ".NET: Copy Path",
+        "title": "Copy Path",
         "icon": "$(copy)"
       },
       {
         "command": "dotnav.copyRelativePath",
-        "title": ".NET: Copy Relative Path",
+        "title": "Copy Relative Path",
         "icon": "$(files)"
       },
       {
         "command": "dotnav.revealInOs",
-        "title": ".NET: Reveal in File Explorer",
+        "title": "Reveal in File Explorer",
         "icon": "$(folder-opened)"
       },
       {

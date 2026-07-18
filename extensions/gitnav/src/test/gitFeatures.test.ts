@@ -264,6 +264,11 @@ test('renders changed files as a recursive collapsible tree', () => {
   assert.match(source, /cancelAnimationFrame\(branchSearchFrame\)/);
   assert.match(source, /generation!==branchSearchGeneration/);
   assert.match(source, /branchSearch'\)\.oninput=scheduleBranchSearch/);
+  assert.match(source, /data-open-local/);
+  assert.match(source, /Open local file \(Ctrl\+Enter\)/);
+  assert.match(source, /if\(e\.ctrlKey\|\|e\.metaKey\)send\('openFile'/);
+  assert.match(source, /File is not available locally\./);
+  assert.match(source, /Restore from Commit/);
 });
 
 test('renders Git Log lane focus, action feedback, and worktree support', () => {

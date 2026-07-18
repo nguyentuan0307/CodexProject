@@ -103,4 +103,8 @@ test('commit column visibility uses eye toggle buttons instead of checkboxes', (
   assert.doesNotMatch(provider, /type="checkbox" data-column-toggle/);
   assert.match(styles, /\.column-toggle-icon svg/);
   assert.match(styles, /\.column-toggle\[aria-checked="false"\]/);
+  assert.match(styles, /\.hide-col-graph \[data-col="graph"\]/);
+  assert.match(styles, /\.hide-col-subject \[data-col="subject"\]/);
+  assert.match(styles, /\.hide-col-author \[data-col="author"\]/);
+  assert.match(styles, /\.hide-col-date \[data-col="date"\]/);
 });

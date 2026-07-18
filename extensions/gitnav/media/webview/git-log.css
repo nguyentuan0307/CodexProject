@@ -847,7 +847,10 @@ textarea,
   background: var(--vscode-sash-hoverBorder);
 }
 
-.commit-col-hidden {
+.hide-col-graph [data-col="graph"],
+.hide-col-subject [data-col="subject"],
+.hide-col-author [data-col="author"],
+.hide-col-date [data-col="date"] {
   display: none !important;
 }
 

@@ -133,15 +133,13 @@ export class GitRepositoryService {
     const cached = this.filterOptionsCache.get(root);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     const [authorsResult, filesResult] = await Promise.all([
-      this.git(root, ['log', '--all', '--format=%an%x00%ae%x00'], token),
+      this.git(root, ['shortlog', '-sne', '--all'], token),
       this.git(root, ['ls-files', '-z'], token)
     ]);
-    const authorFields = authorsResult.stdout.split('\0');
     const authors = new Map<string, { name: string; email: string }>();
-    for (let index = 0; index + 1 < authorFields.length; index += 2) {
-      const name = authorFields[index].replace(/^\r?\n/, '').trim();
-      const email = authorFields[index + 1].trim();
-      if (email) authors.set(email.toLowerCase(), { name: name || email, email });
+    for (const line of authorsResult.stdout.split(/\r?\n/)) {
+      const match = /^\s*\d+\s+(.+?)\s+<([^>]+)>\s*$/.exec(line);
+      if (match) authors.set(match[2].toLowerCase(), { name: match[1].trim(), email: match[2].trim() });
     }
     const value = {
       authors: [...authors.values()].sort((a, b) => a.name.localeCompare(b.name)),

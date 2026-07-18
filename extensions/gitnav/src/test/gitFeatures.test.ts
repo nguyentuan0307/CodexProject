@@ -300,6 +300,10 @@ test('builds professional commit filters with AND semantics', () => {
   assert.match(service, /for \(const author of filter\.authors \?\? \[\]\)/);
   assert.match(service, /'--regexp-ignore-case', '--fixed-strings'/);
   assert.match(service, /filterOptions\(root: string/);
+  assert.match(service, /'shortlog', '-sne', '--all'/);
+  assert.doesNotMatch(provider, /workingTreeFiles\(this\.root, read\.source\.token\), this\.service\.filterOptions/);
+  assert.match(provider, /void this\.loadFilterOptions\(this\.root\)/);
+  assert.match(provider, /m\.type!=='filterOptions'/);
   assert.match(provider, /until:state\.filterDraft\.until\?state\.filterDraft\.until\+' 23:59:59'/);
   assert.match(provider, /fuzzyMatch\(pathBase\(x\.path\),q\)/);
 });

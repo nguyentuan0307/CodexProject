@@ -80,14 +80,15 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     const read = this.beginRead('refresh', this.root);
     const activeFilter = this.activeFilters.get(this.root, {});
     try {
-      const [repository, log, uncommitted, filterOptions] = await Promise.all([
+      const [repository, log, uncommitted] = await Promise.all([
         this.service.snapshot(this.root, read.source.token), this.service.log(this.root, 0, 200, activeFilter, read.source.token),
-        this.service.workingTreeFiles(this.root, read.source.token), this.service.filterOptions(this.root, read.source.token)
+        this.service.workingTreeFiles(this.root, read.source.token)
       ]);
       if (this.requests.isCurrent('refresh', read.identity, this.root)) {
         const protectedBranches = vscode.workspace.getConfiguration('gitnav')
           .get<string[]>('protectedBranches', ['main', 'master', 'develop', 'release/*']);
-        this.post({ type: 'state', repositories, repository, log, uncommitted, filterOptions, protectedBranches, activeFilter, generation: read.identity.generation, identity: read.identity });
+        this.post({ type: 'state', repositories, repository, log, uncommitted, protectedBranches, activeFilter, generation: read.identity.generation, identity: read.identity });
+        void this.loadFilterOptions(this.root);
         this.logDiagnostic(`State posted: ${repository.refs.length} refs, ${log.commits.length} commits${log.hasMore ? '+' : ''}, ${uncommitted.length} working tree files (${Date.now() - startedAt} ms).`);
       } else {
         this.logDiagnostic(`Refresh ${read.identity.requestId} completed stale; state was not posted.`);
@@ -746,6 +747,15 @@ export class GitLogViewProvider implements vscode.WebviewViewProvider, vscode.Di
     }
   }
 
+  private async loadFilterOptions(root: string): Promise<void> {
+    try {
+      const filterOptions = await this.service.filterOptions(root);
+      if (this.root === root) this.post({ type: 'filterOptions', filterOptions, repositoryId: root });
+    } catch (error) {
+      this.logDiagnostic(`Filter options unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   private activeRevisionLocation(root: string, filePath: string): { ref: string; line: number } | undefined {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.uri.scheme !== 'gitnav-revision') return undefined;
@@ -895,6 +905,7 @@ function closeRecoveryModal(){$('recoveryModal').classList.remove('open')}
 function showRecoveryModal(message){const recovery=message.recovery,actions=$('recoveryModalActions'),remember=$('recoveryModalRemember');$('recoveryModalTitle').textContent=recovery.title;$('recoveryModalMessage').textContent=recovery.message;$('recoveryModalDetailText').textContent=recovery.detail;$('recoveryModalDetails').style.display=recovery.detail?'block':'none';$('recoveryModalDetails').open=false;remember.style.display=recovery.kind==='pushRejected'?'flex':'none';remember.querySelector('input').checked=false;actions.innerHTML='<button id="cancelRecovery">Cancel</button>';actions.querySelector('#cancelRecovery').onclick=closeRecoveryModal;for(const item of recovery.actions.slice(0,2)){const button=document.createElement('button');button.textContent=item.label;if(['abort','forceDeleteBranch','worktreeRemove'].includes(item.action))button.className='danger';button.onclick=()=>{closeRecoveryModal();sendMutation(item.action,{strategy:item.strategy,remember:remember.querySelector('input').checked===true,operation:message.operation,...(message.request||{})})};actions.appendChild(button)}$('recoveryModal').classList.add('open');actions.querySelector('button:not(#cancelRecovery)')?.focus()}
 function showRecoveryToast(message){const recovery=message.recovery,toast=$('toast');if(recovery.actions.length)return showRecoveryModal(message);if(recovery.kind==='stashConflict'){state.showingUncommitted=true;renderFiles(state.uncommitted,true);$('detail').innerHTML='<div class="message">Resolve conflicted files</div>'}$('toastTitle').textContent=recovery.title;$('toastMessage').textContent=recovery.message;$('toastDetailText').textContent=recovery.detail;$('toastDetails').style.display=recovery.detail?'block':'none';$('toastDetails').open=false;$('toastActions').innerHTML='';toast.classList.add('recovery',recovery.level);toast.classList.remove('success');toast.style.display='block'}
 $('toastClose').onclick=hideToast;window.addEventListener('message',e=>{const m=e.data;if(m.type==='autoRecovery'){const toast=$('toast');$('toastTitle').textContent=m.message;$('toastMessage').textContent='Repository refreshed.';$('toastActions').innerHTML='';$('toastDetails').style.display='none';toast.classList.remove('recovery','guided','manual');toast.classList.add('success');toast.style.display='block';clearTimeout(state.feedbackTimer);state.feedbackTimer=setTimeout(hideToast,2600);e.stopImmediatePropagation()}else if(m.type==='recovery'){showRecoveryToast(m);e.stopImmediatePropagation()}else if(m.type==='error'){clearPending();showErrorToast(m.message);if(['ready','refresh','loadLog'].includes(m.scope)&&!state.commits.length){$('emptyState').hidden=false;$('emptyState').innerHTML='<b>Unable to load Git history</b><span>Review the error details, then try again.</span><button data-empty-action="refresh">Try again</button>'}e.stopImmediatePropagation()}else if(m.type==='pending'){if(m.pending===false)clearPending();e.stopImmediatePropagation()}else if(m.type==='busy'){if(state.repository?.root&&m.repositoryId!==state.repository.root){e.stopImmediatePropagation();return}if(m.busy)setActionActivity(true,'running',m.action,m.actionLabel||actionLabel(m.action));else{setActionActivity(false,'',m.action,m.actionLabel||actionLabel(m.action));if(m.succeeded&&m.applied)showActionFeedback(m.feedback||'status',m.actionLabel||actionLabel(m.action))}e.stopImmediatePropagation()}},true);
+window.addEventListener('message',e=>{const m=e.data;if(m.type!=='filterOptions')return;if(state.repository?.root===m.repositoryId){state.filterOptions=m.filterOptions||{authors:[],files:[]};if($('filters').classList.contains('expanded'))renderFilterControls()}e.stopImmediatePropagation()},true);
 $('recoveryModal').onclick=e=>{if(e.target===$('recoveryModal'))closeRecoveryModal()};document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRecoveryModal()});
 function graphX(column){return PAD+column*COL+COL/2}function graphY(index,scrollTop){return index*ROW+ROW/2-scrollTop}function graphPath(x1,y1,x2,y2,stub=false){if(x1===x2||stub)return'M '+x1+' '+y1+' L '+x2+' '+y2;const bend=y2-Math.sign(y2-y1||1)*ROW*.65;return'M '+x1+' '+y1+' C '+x1+' '+bend+', '+x2+' '+(y1+ROW*.35)+', '+x2+' '+y2}
 function selectedFirstParentPath(){const selected=state.commits[state.selected];if(!selected)return new Set();const childByParent=new Map();for(const commit of state.commitsByHash.values()){const parent=commit.parents[0];if(parent&&!childByParent.has(parent))childByParent.set(parent,commit.hash)}const active=new Set();let hash=selected.hash;while(hash&&!active.has(hash)){active.add(hash);hash=state.commitsByHash.get(hash)?.parents[0]}hash=childByParent.get(selected.hash);while(hash&&!active.has(hash)){active.add(hash);hash=childByParent.get(hash)}return active}

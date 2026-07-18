@@ -290,6 +290,20 @@ test('renders Git Log lane focus, action feedback, and worktree support', () => 
   assert.match(mutations, /case 'worktreePrune'/);
 });
 
+test('builds professional commit filters with AND semantics', () => {
+  const provider = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
+  const service = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitRepositoryService.ts'), 'utf8');
+  const models = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitPanelModels.ts'), 'utf8');
+  assert.match(models, /readonly authors\?: string\[\]/);
+  assert.doesNotMatch(models, /readonly regex\?:/);
+  assert.doesNotMatch(models, /readonly matchCase\?:/);
+  assert.match(service, /for \(const author of filter\.authors \?\? \[\]\)/);
+  assert.match(service, /'--regexp-ignore-case', '--fixed-strings'/);
+  assert.match(service, /filterOptions\(root: string/);
+  assert.match(provider, /until:state\.filterDraft\.until\?state\.filterDraft\.until\+' 23:59:59'/);
+  assert.match(provider, /fuzzyMatch\(pathBase\(x\.path\),q\)/);
+});
+
 test('reuses mutation state and keeps expensive refresh work off the action critical path', () => {
   const provider = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitLogViewProvider.ts'), 'utf8');
   const service = readFileSync(path.join(__dirname, '..', '..', 'src', 'git', 'gitRepositoryService.ts'), 'utf8');
@@ -339,8 +353,14 @@ test('renders advanced Git Log UX and interactive rebase preview', () => {
   assert.match(source, /m\.repositories\.length>1\?'block':'none'/);
   assert.match(source, /id="fileSummary"/);
   assert.match(source, /function commitAge\(/);
-  assert.match(source, /class="filter-fields"/);
-  assert.match(source, /class="filter-options"/);
+  assert.match(source, /class="filter-grid"/);
+  assert.match(source, /id="authorPicker"/);
+  assert.match(source, /id="pathPicker"/);
+  assert.match(source, /id="datePreset"/);
+  assert.match(source, /function highlightText\(/);
+  assert.match(source, /document\.addEventListener\('pointerdown'/);
+  assert.doesNotMatch(source, /type="checkbox" id="regex"/);
+  assert.doesNotMatch(source, /type="checkbox" id="case"/);
   assert.match(source, /aria-expanded="false"/);
   assert.match(source, />Fetch<\/span>/);
   assert.match(source, />Push<\/span>/);

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { runGit } from './gitCli';
-import { GitCommitDetail, GitCommitSummary, GitFileChange, GitGraphSnapshot, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo, GitWorktreeInfo } from './gitPanelModels';
+import { GitCommitDetail, GitCommitSummary, GitFileChange, GitFilterOptions, GitGraphSnapshot, GitLogFilter, GitLogPage, GitOperationState, GitRefInfo, GitRepositorySnapshot, GitStashInfo, GitWorktreeInfo } from './gitPanelModels';
 import { logPrettyFormat, parseLog, parseNameStatusZ, parseNumstatZ, parseWorkingTreeStatus } from './gitPanelParsers';
 import { computeGraphLayout } from './gitGraphLayout';
 import { BoundedCache } from './boundedCache';
@@ -22,6 +22,7 @@ export class GitRepositoryService {
   private readonly graphSnapshots = new Map<string, GitGraphSnapshot>();
   private readonly logCache = new BoundedCache<GitLogPage>(30);
   private readonly detailCache = new BoundedCache<GitCommitDetail>(80);
+  private readonly filterOptionsCache = new Map<string, { expiresAt: number; value: GitFilterOptions }>();
   async discoverRepositories(force = false): Promise<string[]> {
     const cached = this.repositoryDiscoveryCache;
     if (!force && cached && cached.expiresAt > Date.now()) return cached.roots;
@@ -126,6 +127,28 @@ export class GitRepositoryService {
     const page = { commits, offset, hasMore };
     this.logCache.set(cacheKey, page);
     return page;
+  }
+
+  async filterOptions(root: string, token?: vscode.CancellationToken): Promise<GitFilterOptions> {
+    const cached = this.filterOptionsCache.get(root);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const [authorsResult, filesResult] = await Promise.all([
+      this.git(root, ['log', '--all', '--format=%an%x00%ae%x00'], token),
+      this.git(root, ['ls-files', '-z'], token)
+    ]);
+    const authorFields = authorsResult.stdout.split('\0');
+    const authors = new Map<string, { name: string; email: string }>();
+    for (let index = 0; index + 1 < authorFields.length; index += 2) {
+      const name = authorFields[index].replace(/^\r?\n/, '').trim();
+      const email = authorFields[index + 1].trim();
+      if (email) authors.set(email.toLowerCase(), { name: name || email, email });
+    }
+    const value = {
+      authors: [...authors.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      files: filesResult.stdout.split('\0').filter(Boolean).sort()
+    };
+    this.filterOptionsCache.set(root, { value, expiresAt: Date.now() + 30_000 });
+    return value;
   }
 
   async commitDetail(root: string, hash: string, parent?: number, token?: vscode.CancellationToken): Promise<GitCommitDetail> {
@@ -303,18 +326,13 @@ export function parseWorktrees(output: string, currentRoot: string): GitWorktree
 
 function buildFilterArgs(filter: GitLogFilter): string[] {
   const args: string[] = [];
-  if (filter.text) {
-    args.push(`--grep=${filter.regex ? filter.text : escapeRegex(filter.text)}`);
-    if (!filter.matchCase) args.push('--regexp-ignore-case');
-    if (!filter.regex) args.push('--fixed-strings');
-  }
-  if (filter.author) args.push(`--author=${filter.author}`);
+  if (filter.text) args.push(`--grep=${filter.text}`);
+  for (const author of filter.authors ?? []) args.push(`--author=<${author}>`);
+  if (filter.text || filter.authors?.length) args.push('--regexp-ignore-case', '--fixed-strings');
   if (filter.since) args.push(`--since=${filter.since}`);
   if (filter.until) args.push(`--until=${filter.until}`);
   return args;
 }
-
-function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 async function detectOperation(root: string): Promise<GitOperationState | undefined> {
   const gitDirResult = await runGit(root, ['rev-parse', '--git-dir']);
